@@ -223,7 +223,7 @@ function renderMessageArea(){
         <span class="sa mn2" style="color:var(--a);font-weight:700;font-size:.92rem">${ib?.emailAddress||''}</span>
         <button class="b bg bi" style="padding:4px" onclick="copyText('${ib?.emailAddress||''}')">📋</button>
       </div>
-      <div class="fx ac g2 mt6" style="opacity:.5"><div class="sp" style="width:12px;height:12px"></div><span class="tx tm">Live checking every 10s</span></div>`;
+      <div class="fx ac g2 mt6" style="opacity:.5"><div class="sp" style="width:12px;height:12px"></div><span class="tx tm">Live checking (Real-time)</span></div>`;
     return;
   }
   // Viewing single message
@@ -292,8 +292,8 @@ function startLive(inboxId){
   try{
     S.sse=new EventSource(`/api/inbox/${inboxId}/stream`);
     S.sse.onmessage=ev=>{try{const d=JSON.parse(ev.data);if(d.type==='new_messages'&&d.count>0){toast(`📨 ${d.count} new message${d.count>1?'s':''}!`,'s');loadMessages(inboxId);loadInboxes()}}catch(e){}};
-    S.sse.onerror=()=>{if(S.sse)S.sse.close();S.sse=null;if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},10000)};
-  }catch(e){if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},10000)}
+    S.sse.onerror=()=>{if(S.sse)S.sse.close();S.sse=null;if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},1000)};
+  }catch(e){if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},1000)}
 }
 
 /* ═══════════════════ ADMIN ═══════════════════ */

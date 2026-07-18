@@ -356,7 +356,7 @@ router.get('/inbox/:id/stream', (req, res) => {
     } catch (e) {
       res.write(`data: ${JSON.stringify({ type: 'error', message: e.message })}\n\n`);
     }
-  }, 10000); // Check every 10 seconds
+  }, 1000); // Check every 1 second
 
   req.on('close', () => {
     clearInterval(interval);
