@@ -39,20 +39,6 @@ router.post('/inbox', async (req, res) => {
   try {
     const { domain, provider } = req.body || {};
 
-    // Check inbox limit for anonymous users
-    if (!req.userId) {
-      const maxInboxes = db.prepare('SELECT value FROM settings WHERE key = ?').get('max_inboxes_per_session');
-      const limit = parseInt(maxInboxes?.value || '5');
-      const count = db.prepare('SELECT COUNT(*) as c FROM inboxes WHERE user_session_id = ? AND status = ?')
-        .get(req.sessionId, 'active');
-      if (count.c >= limit) {
-        return res.status(429).json({
-          error: 'Inbox limit reached',
-          message: `Maximum ${limit} active inboxes per session`
-        });
-      }
-    }
-
     const inbox = await providerManager.createInbox(domain || null, req.sessionId, req.userId);
 
     res.status(201).json({

@@ -265,13 +265,17 @@ router.put('/settings/:key', auditLog('setting.update', 'setting'), (req, res) =
 /* ======================== Maintenance & System ======================== */
 
 router.post('/maintenance', auditLog('maintenance.toggle', 'system'), (req, res) => {
-  let { enabled } = req.body;
-  if (enabled === undefined) {
-    const current = db.prepare("SELECT value FROM settings WHERE key = 'maintenance_mode'").get()?.value;
-    enabled = current !== 'true';
+  try {
+    let { enabled } = req.body;
+    if (enabled === undefined) {
+      const current = db.prepare("SELECT value FROM settings WHERE key = 'maintenance_mode'").get()?.value;
+      enabled = current !== 'true';
+    }
+    db.prepare("INSERT OR REPLACE INTO settings (key, value, description) VALUES ('maintenance_mode', ?, 'Enable/disable maintenance mode')").run(enabled ? 'true' : 'false');
+    res.json({ success: true, maintenanceMode: enabled });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(enabled ? 'true' : 'false', 'maintenance_mode');
-  res.json({ success: true, maintenanceMode: enabled });
 });
 
 router.get('/system-info', (req, res) => {

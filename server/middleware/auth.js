@@ -273,8 +273,9 @@ function csrfProtection(req, res, next) {
  * Maintenance mode check
  */
 function maintenanceCheck(req, res, next) {
-  // Allow admin routes even in maintenance mode
-  if (req.path.startsWith('/api/admin') || req.path.startsWith('/api/auth')) {
+  // Allow admin, auth and health routes even in maintenance mode
+  const fullPath = req.originalUrl || req.path;
+  if (fullPath.includes('/admin') || fullPath.includes('/auth') || fullPath.includes('/health')) {
     return next();
   }
 
