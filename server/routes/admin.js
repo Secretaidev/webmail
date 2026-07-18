@@ -5,12 +5,12 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../db');
-const { authenticate, requireAdmin, auditLog, hashPassword } = require('../middleware/auth');
+const { authenticateAny, requireAdmin, auditLog, hashPassword } = require('../middleware/auth');
 const providerManager = require('../providers/manager');
 const { v4: uuidv4 } = require('uuid');
 
 // All admin routes require authentication + admin role
-router.use(authenticate);
+router.use(authenticateAny);
 router.use(requireAdmin);
 
 /* ======================== Dashboard Stats ======================== */

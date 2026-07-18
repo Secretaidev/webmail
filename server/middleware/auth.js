@@ -169,7 +169,7 @@ function authenticateAny(req, res, next) {
  * Session ID middleware - creates/reads anonymous session
  */
 function sessionMiddleware(req, res, next) {
-  let sessionId = req.cookies && req.cookies.xyronmail_session;
+  let sessionId = (req.cookies && req.cookies.xyronmail_session) || req.headers['x-session-id'];
   if (!sessionId) {
     sessionId = `sess_${uuidv4().replace(/-/g, '')}`;
     res.cookie('xyronmail_session', sessionId, {

@@ -164,9 +164,10 @@ async function startServer() {
     initializeDatabase();
 
     // Create default admin if not exists
-    const admin = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
+    let admin = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
+    let adminId;
     if (!admin) {
-      const adminId = `user_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
+      adminId = `user_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
       const adminEmail = process.env.ADMIN_EMAIL || 'xyron_secure_root_admin@xyronmail.com';
       const adminPass = hashPassword(process.env.ADMIN_PASSWORD || 'XyronMail_Secure_Root_Admin_@2026_!#_928374');
       db.prepare(`
@@ -174,6 +175,21 @@ async function startServer() {
         VALUES (?, ?, ?, 'Admin', 'admin', 'active', 1)
       `).run(adminId, adminEmail, adminPass);
       console.log(`[Server] Admin created: ${adminEmail}`);
+    } else {
+      adminId = admin.id;
+    }
+
+    // Seed master API key for bot if not exists
+    const botKey = db.prepare("SELECT id FROM api_keys WHERE id = 'key_bot_master'").get();
+    if (!botKey) {
+      const bcrypt = require('bcryptjs');
+      const rawKey = "xm_unlimited_admin_key_928374";
+      const keyHash = bcrypt.hashSync(rawKey, 10);
+      db.prepare(`
+        INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, scopes, quota_daily, status)
+        VALUES ('key_bot_master', ?, 'Telegram Bot Master Key', ?, 'xm_unli', '["read","write","admin"]', 9999999, 'active')
+      `).run(adminId, keyHash);
+      console.log("[Server] Telegram Bot Master API Key seeded");
     }
 
     // Initialize providers

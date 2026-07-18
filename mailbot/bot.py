@@ -11,10 +11,9 @@ from telegram.ext import (
 )
 
 # ═══════════════════ CONFIGURATION ═══════════════════
-# Change API_URL to your deployed website URL before hosting the bot
-# Example: API_URL = "https://xyronmail.onrender.com"
-API_URL = "http://localhost:3000"
+API_URL = "https://xyronmail.up.railway.app"
 BOT_TOKEN = "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8"
+ADMIN_TG_ID = 8265364068
 
 # Set up logging
 logging.basicConfig(
@@ -51,14 +50,19 @@ def url_btn(text: str, url: str, style: str = None) -> InlineKeyboardButton:
 
 
 # ═══════════════════ API HELPER ═══════════════════
-async def call_api(method: str, path: str, json_data: dict = None) -> dict:
+async def call_api(method: str, path: str, json_data: dict = None, user_id: int = None, use_admin: bool = False) -> dict:
     """Makes an API call to the XyronMail server.
-    The public inbox API doesn't require authentication - 
-    it uses session cookies automatically."""
+    Passes X-Session-ID matching Telegram user ID to persist session,
+    or passes X-API-Key for admin commands."""
     async with httpx.AsyncClient(timeout=15.0) as client:
         headers = {"Content-Type": "application/json"}
+        if user_id:
+            headers["X-Session-ID"] = f"tg_{user_id}"
+        if use_admin:
+            headers["X-API-Key"] = "xm_unlimited_admin_key_928374"
+            
         try:
-            url = f"{API_URL}{path}"
+            url = f"{API_URL.rstrip('/')}{path}"
             if method.upper() == "GET":
                 response = await client.get(url, headers=headers)
             elif method.upper() == "POST":
@@ -84,15 +88,12 @@ async def call_api(method: str, path: str, json_data: dict = None) -> dict:
             raise Exception(f"API error: {str(e)}")
 
 
-# ═══════════════════ USER SESSION STORE ═══════════════════
-user_inboxes = {}
-
-
 # ═══════════════════ TELEGRAM BOT HANDLERS ═══════════════════
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send welcome message with main navigation"""
     user = update.effective_user
+    user_id = user.id
     welcome_text = (
         f"👋 <b>Welcome to XyronMail Bot, {html_escape(user.first_name)}!</b>\n\n"
         "Generate instant disposable inboxes, receive verification emails, "
@@ -107,12 +108,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ],
         [
             btn("❓ Help", "cb_help", style="primary"),
-        ],
-        [
-            url_btn("✈️ Telegram Channel", "https://t.me/Xyron_Bots", style="primary"),
-            url_btn("💬 WhatsApp", "https://wa.me/959660590850", style="success")
         ]
     ]
+    
+    # Append admin button if the Telegram ID matches the owner
+    if user_id == ADMIN_TG_ID:
+        keyboard.append([btn("🛡️ Admin Console", "admin_menu", style="danger")])
+        
+    keyboard.append([
+        url_btn("✈️ Telegram Channel", "https://t.me/Xyron_Bots", style="primary"),
+        url_btn("💬 WhatsApp", "https://wa.me/959660590850", style="success")
+    ])
     
     await update.message.reply_text(
         text=welcome_text,
@@ -159,18 +165,13 @@ async def new_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.callback_query.answer("⚡ Generating inbox...")
         
     try:
-        data = await call_api("POST", "/api/inbox")
+        data = await call_api("POST", "/api/inbox", user_id=user_id)
         if not data.get("success"):
             raise Exception(data.get("error", "Unknown error"))
             
         inbox = data["data"]
         email_address = inbox["emailAddress"]
         inbox_id = inbox["id"]
-        
-        # Store in user session
-        if user_id not in user_inboxes:
-            user_inboxes[user_id] = []
-        user_inboxes[user_id].append({"id": inbox_id, "email": email_address})
         
         response_text = (
             "📥 <b>Temporary Inbox Ready!</b>\n\n"
@@ -217,59 +218,94 @@ async def new_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def list_inboxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """List all active inboxes for the current user"""
+    """List all active inboxes for the current user from database"""
     user_id = update.effective_user.id
     is_cb = update.callback_query is not None
     
     if is_cb:
         await update.callback_query.answer()
         
-    inboxes = user_inboxes.get(user_id, [])
-    if not inboxes:
-        no_mail_text = (
-            "📭 <b>No Active Inboxes</b>\n\n"
-            "You haven't generated any temporary inboxes yet.\n"
-            "Click below to create one instantly!"
-        )
-        keyboard = [
-            [btn("⚡ Generate Inbox", "cb_new", style="primary")],
-            [btn("🔙 Main Menu", "cb_menu", style="success")]
-        ]
+    try:
+        data = await call_api("GET", "/api/inbox", user_id=user_id)
+        if not data.get("success"):
+            raise Exception(data.get("error", "Failed to retrieve inboxes"))
+            
+        inboxes = data.get("data", [])
+        if not inboxes:
+            no_mail_text = (
+                "📭 <b>No Active Inboxes</b>\n\n"
+                "You haven't generated any temporary inboxes yet.\n"
+                "Click below to create one instantly!"
+            )
+            keyboard = [
+                [btn("⚡ Generate Inbox", "cb_new", style="primary")],
+                [btn("🔙 Main Menu", "cb_menu", style="success")]
+            ]
+            
+            if is_cb:
+                await update.callback_query.edit_message_text(
+                    text=no_mail_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
+                )
+            else:
+                await update.message.reply_text(
+                    text=no_mail_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
+                )
+            return
+            
+        list_text = f"📋 <b>Your Active Inboxes ({len(inboxes)}):</b>\n\n"
+        keyboard = []
+        
+        for i, ib in enumerate(inboxes, 1):
+            list_text += f"{i}. <code>{html_escape(ib['emailAddress'])}</code>\n"
+            short_name = ib['emailAddress'].split('@')[0]
+            if len(short_name) > 12:
+                short_name = short_name[:12] + "…"
+            keyboard.append([
+                btn(f"📬 {short_name}", f"cb_ref:{ib['id']}", style="success"),
+                btn("🗑", f"cb_del:{ib['id']}", style="danger")
+            ])
+            
+        keyboard.append([btn("⚡ New Inbox", "cb_new", style="primary")])
+        keyboard.append([btn("🔙 Main Menu", "cb_menu", style="success")])
         
         if is_cb:
             await update.callback_query.edit_message_text(
-                text=no_mail_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
+                text=list_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
             )
         else:
             await update.message.reply_text(
-                text=no_mail_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
+                text=list_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
             )
+            
+    except Exception as e:
+        err_text = f"❌ <b>Error:</b> {html_escape(str(e))}"
+        keyboard = [[btn("🔙 Main Menu", "cb_menu", style="primary")]]
+        if is_cb:
+            await update.callback_query.edit_message_text(
+                text=err_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
+            )
+        else:
+            await update.message.reply_text(
+                text=err_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
+            )
+
+
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send admin dashboard command to authorized owner"""
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_ID:
+        await update.message.reply_text("❌ Unauthorized. Access denied.")
         return
         
-    list_text = f"📋 <b>Your Active Inboxes ({len(inboxes)}):</b>\n\n"
-    keyboard = []
-    
-    for i, ib in enumerate(inboxes, 1):
-        list_text += f"{i}. <code>{html_escape(ib['email'])}</code>\n"
-        short_name = ib['email'].split('@')[0]
-        if len(short_name) > 12:
-            short_name = short_name[:12] + "…"
-        keyboard.append([
-            btn(f"📬 {short_name}", f"cb_ref:{ib['id']}", style="success"),
-            btn("🗑", f"cb_del:{ib['id']}", style="danger")
-        ])
-        
-    keyboard.append([btn("⚡ New Inbox", "cb_new", style="primary")])
-    keyboard.append([btn("🔙 Main Menu", "cb_menu", style="success")])
-    
-    if is_cb:
-        await update.callback_query.edit_message_text(
-            text=list_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
-        )
-    else:
-        await update.message.reply_text(
-            text=list_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML"
-        )
+    await update.message.reply_text(
+        text="🛡️ <b>XyronMail Bot Admin Dashboard</b>\n\nChoose an action below to manage the platform:",
+        reply_markup=InlineKeyboardMarkup([
+            [btn("📊 System Stats", "admin_stats", style="primary")],
+            [btn("🔄 Sync Domains", "admin_sync", style="success"), btn("💚 Check Health", "admin_health", style="success")],
+            [btn("🔙 Main Menu", "cb_menu", style="primary")]
+        ]),
+        parse_mode="HTML"
+    )
 
 
 async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -303,12 +339,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ],
             [
                 btn("❓ Help", "cb_help", style="primary"),
-            ],
-            [
-                url_btn("✈️ Telegram Channel", "https://t.me/Xyron_Bots", style="primary"),
-                url_btn("💬 WhatsApp", "https://wa.me/959660590850", style="success")
             ]
         ]
+        if user_id == ADMIN_TG_ID:
+            keyboard.append([btn("🛡️ Admin Console", "admin_menu", style="danger")])
+            
+        keyboard.append([
+            url_btn("✈️ Telegram Channel", "https://t.me/Xyron_Bots", style="primary"),
+            url_btn("💬 WhatsApp", "https://wa.me/959660590850", style="success")
+        ])
         await query.edit_message_text(
             text=welcome_text,
             reply_markup=InlineKeyboardMarkup(keyboard),
@@ -319,11 +358,17 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         inbox_id = data.split(":")[1]
         await query.answer("🔄 Checking messages...")
         
-        inboxes = user_inboxes.get(user_id, [])
-        email = next((i["email"] for i in inboxes if i["id"] == inbox_id), "Unknown")
-        
         try:
-            msg_res = await call_api("GET", f"/api/inbox/{inbox_id}/messages")
+            # Get inbox data to get email address
+            inbox_res = await call_api("GET", "/api/inbox", user_id=user_id)
+            email = "Active Inbox"
+            if inbox_res.get("success"):
+                for ib in inbox_res.get("data", []):
+                    if ib["id"] == inbox_id:
+                        email = ib["emailAddress"]
+                        break
+
+            msg_res = await call_api("GET", f"/api/inbox/{inbox_id}/messages", user_id=user_id)
             if not msg_res.get("success"):
                 raise Exception(msg_res.get("error", "Failed to retrieve messages"))
                 
@@ -397,7 +442,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.answer("📖 Loading message...")
         
         try:
-            detail_res = await call_api("GET", f"/api/inbox/{inbox_id}/messages/{msg_id}")
+            detail_res = await call_api("GET", f"/api/inbox/{inbox_id}/messages/{msg_id}", user_id=user_id)
             if not detail_res.get("success"):
                 raise Exception(detail_res.get("error", "Failed to load message"))
                 
@@ -457,13 +502,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.answer("🗑 Deleting...")
         
         try:
-            del_res = await call_api("DELETE", f"/api/inbox/{inbox_id}")
+            del_res = await call_api("DELETE", f"/api/inbox/{inbox_id}", user_id=user_id)
             if not del_res.get("success"):
                 raise Exception(del_res.get("error", "Failed to delete"))
-                
-            # Remove from user session
-            if user_id in user_inboxes:
-                user_inboxes[user_id] = [i for i in user_inboxes[user_id] if i["id"] != inbox_id]
                 
             await query.edit_message_text(
                 text="🗑 <b>Inbox deleted successfully.</b>",
@@ -483,12 +524,87 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 parse_mode="HTML"
             )
 
+    # ═══════════════════ BOT ADMIN COMMAND CALLBACKS ═══════════════════
+    elif data == "admin_menu":
+        if user_id != ADMIN_TG_ID:
+            await query.answer("Access denied!", show_alert=True)
+            return
+        await query.answer()
+        await query.edit_message_text(
+            text="🛡️ <b>XyronMail Bot Admin Dashboard</b>\n\nChoose an action below to manage the platform:",
+            reply_markup=InlineKeyboardMarkup([
+                [btn("📊 System Stats", "admin_stats", style="primary")],
+                [btn("🔄 Sync Domains", "admin_sync", style="success"), btn("💚 Check Health", "admin_health", style="success")],
+                [btn("🔙 Main Menu", "cb_menu", style="primary")]
+            ]),
+            parse_mode="HTML"
+        )
+        
+    elif data == "admin_stats":
+        if user_id != ADMIN_TG_ID:
+            await query.answer("Access denied!", show_alert=True)
+            return
+        await query.answer("Fetching stats...")
+        try:
+            stats = await call_api("GET", "/api/admin/stats", use_admin=True)
+            if not stats.get("success"):
+                raise Exception(stats.get("error", "Error loading stats"))
+            s = stats["data"]
+            text = (
+                "🛡️ <b>Live System Stats:</b>\n\n"
+                f"👥 <b>Total Users:</b> {s.get('users', 0)} ({s.get('activeUsers', 0)} active)\n"
+                f"📧 <b>Active Inboxes:</b> {s.get('activeInboxes', 0)}\n"
+                f"💌 <b>Total Messages:</b> {s.get('messages', 0)}\n"
+                f"🔑 <b>API Keys:</b> {s.get('apiKeys', 0)}\n"
+                f"🌐 <b>Active Providers:</b> {s.get('activeProviders', 0)}/{s.get('providers', 0)}\n"
+                f"🔗 <b>Active Domains:</b> {s.get('domains', 0)}"
+            )
+            await query.edit_message_text(
+                text=text,
+                reply_markup=InlineKeyboardMarkup([
+                    [btn("🔄 Refresh Stats", "admin_stats", style="success")],
+                    [btn("🔙 Admin Menu", "admin_menu", style="primary")]
+                ]),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            await query.edit_message_text(
+                text=f"❌ <b>Error:</b> {html_escape(str(e))}",
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                parse_mode="HTML"
+            )
+
+    elif data == "admin_sync":
+        if user_id != ADMIN_TG_ID:
+            await query.answer("Access denied!", show_alert=True)
+            return
+        await query.answer("Syncing domains...")
+        try:
+            res = await call_api("POST", "/api/admin/providers/sync-domains", use_admin=True)
+            msg = "✅ Domain Sync triggered successfully!" if res.get("success") else f"❌ Error: {res.get('error')}"
+            await query.answer(msg, show_alert=True)
+        except Exception as e:
+            await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+
+    elif data == "admin_health":
+        if user_id != ADMIN_TG_ID:
+            await query.answer("Access denied!", show_alert=True)
+            return
+        await query.answer("Running health check...")
+        try:
+            res = await call_api("POST", "/api/admin/providers/health-check", use_admin=True)
+            msg = "✅ Health Check triggered successfully!" if res.get("success") else f"❌ Error: {res.get('error')}"
+            await query.answer(msg, show_alert=True)
+        except Exception as e:
+            await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+
 
 # ═══════════════════ MAIN STARTUP ═══════════════════
 def main() -> None:
     """Start the XyronMail Telegram Bot"""
     print("🚀 Initializing XyronMail Telegram Bot...")
     print(f"📡 API URL: {API_URL}")
+    print(f"🛡️ Admin Telegram ID: {ADMIN_TG_ID}")
     
     app = Application.builder().token(BOT_TOKEN).build()
     
@@ -497,6 +613,7 @@ def main() -> None:
     app.add_handler(CommandHandler("new", new_inbox))
     app.add_handler(CommandHandler("inboxes", list_inboxes))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("admin", admin_panel))
     
     # Callback handler for all inline buttons
     app.add_handler(CallbackQueryHandler(handle_callback))
