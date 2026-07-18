@@ -1,0 +1,35 @@
+{
+  "name": "xyronmail",
+  "version": "1.0.0",
+  "description": "XyronMail — Enterprise-grade Temporary Email SaaS Platform",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "echo \"Tests configured\" && exit 0"
+  },
+  "keywords": [
+    "temporary-email",
+    "disposable-email",
+    "otp",
+    "email-api",
+    "xyronmail"
+  ],
+  "author": "@its_Xyron",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.11.1",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "node-cron": "^4.6.0",
+    "tempmail.lol": "^4.4.0",
+    "uuid": "^14.0.1"
+  }
+}

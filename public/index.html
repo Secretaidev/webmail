@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="XyronMail — Instant disposable email. Create temporary inboxes in one click with real-time delivery, OTP auto-extraction, and developer API.">
+  <meta name="theme-color" content="#06080f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta property="og:title" content="XyronMail — Instant Temporary Email">
+  <meta property="og:description" content="Create disposable inboxes in one click. Real-time delivery, OTP auto-extract, developer API.">
+  <title>XyronMail — Instant Temporary Email</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%238B5CF6' rx='20' width='100' height='100'/><text x='50' y='68' text-anchor='middle' font-size='52' fill='white'>✉</text></svg>">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+<div id="app" class="app">
+  <header class="hdr">
+    <div class="hdr-b" onclick="nav('inbox')"><div class="lg">✉</div><span>XyronMail</span></div>
+    <nav class="hdr-n" id="hn">
+      <button class="on" data-p="inbox" onclick="nav('inbox')">📥 Inbox</button>
+      <button data-p="developer" onclick="nav('developer')">⚡ Developer</button>
+      <button data-p="docs" onclick="nav('docs')">📘 API Docs</button>
+    </nav>
+    <div class="hdr-r">
+      <button class="b bg bi" onclick="toggleTheme()" id="thB">🌙</button>
+      <div id="aUI"><button class="b bg bsm" onclick="aModal('login')">Sign In</button><button class="b bp bsm" onclick="aModal('register')">Sign Up</button></div>
+    </div>
+  </header>
+
+  <main class="mn" id="mn">
+    <!-- ═══════ INBOX ═══════ -->
+    <div id="pg-inbox" class="pg-v">
+      <div class="il">
+        <aside class="isb">
+          <div class="ic">
+            <button class="b bp bw" onclick="cInbox()" id="cib" style="padding:10px 16px;font-size:.84rem">
+              <span style="font-size:1.05rem">⚡</span> Generate Inbox
+            </button>
+            <div class="fx ac jb mt2">
+              <span class="tx tm" id="pInfo"></span>
+              <select class="ip" id="dSel" style="width:auto;max-width:130px;padding:3px 8px;font-size:.65rem;background:var(--bg2);border-radius:var(--r1)">
+                <option value="">🎲 Auto (Best)</option>
+              </select>
+            </div>
+          </div>
+          <div class="isl" id="ibL">
+            <div class="ey" style="padding:20px">
+              <div style="font-size:2.2rem;opacity:.25;margin-bottom:6px">📭</div>
+              <h3 style="font-size:.88rem;font-weight:700;margin-bottom:2px">No Inboxes Yet</h3>
+              <p style="font-size:.7rem;color:var(--t3)">Click Generate above to start</p>
+            </div>
+          </div>
+        </aside>
+
+        <div class="imn" id="ibM">
+          <div id="mA">
+            <div id="eL" class="el"></div>
+            <div id="eV" class="nn"></div>
+            <div id="eI" class="ey" style="min-height:60vh">
+              <div style="font-size:4rem;animation:flt 3s ease-in-out infinite;margin-bottom:8px">✉️</div>
+              <h3 style="font-size:1.5rem;font-weight:900;letter-spacing:-.03em;margin-bottom:4px">Instant Temporary Email</h3>
+              <p style="max-width:420px;color:var(--t3);font-size:.88rem;line-height:1.6;margin-bottom:20px">
+                Create disposable inboxes in one click. Real-time delivery,
+                automatic OTP extraction, and a full developer API.
+              </p>
+              <button class="b bp blg" onclick="cInbox()" style="font-size:.9rem">
+                <span style="font-size:1.1rem">⚡</span> Create Your First Inbox
+              </button>
+              <div class="fx ac g2 mt6" style="opacity:.5">
+                <div class="pd ok"></div>
+                <span class="tx tm" id="heroStatus">System Operational</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ DEVELOPER ═══════ -->
+    <div id="pg-developer" class="pg-v nn">
+      <div class="pg">
+        <div class="fx ac jb mb6">
+          <div>
+            <h1 class="xb" style="font-size:1.5rem;font-weight:900;letter-spacing:-.03em;margin-bottom:3px">⚡ Developer Platform</h1>
+            <p class="tm ts">REST API · SSE Real-time · Webhooks · SDKs</p>
+          </div>
+          <button class="b bp" onclick="bDev()" id="drB">🚀 Become Developer</button>
+        </div>
+        <div class="tbs mb6" id="dt">
+          <button class="tb2 on" onclick="dT('keys')">🔑 Keys</button>
+          <button class="tb2" onclick="dT('an')">📊 Analytics</button>
+          <button class="tb2" onclick="dT('lg')">📋 Logs</button>
+          <button class="tb2" onclick="dT('wh')">🔗 Webhooks</button>
+          <button class="tb2" onclick="dT('pg')">🧪 Playground</button>
+          <button class="tb2" onclick="dT('sdk')">📦 SDKs</button>
+          <button class="tb2" onclick="dT('doc')">📘 Docs</button>
+        </div>
+        <div id="dC">
+          <div id="d-keys">
+            <div class="fx ac jb mb4"><h2 class="bo ts">API Keys</h2><button class="b bp bsm" onclick="kModal()">+ Create Key</button></div>
+            <div id="kL" class="c"><p class="tm tc p4">Sign in as developer to manage API keys</p></div>
+          </div>
+          <div id="d-an" class="nn"><div class="sg mb6" id="dSt"></div></div>
+          <div id="d-lg" class="nn"><div class="tw" id="dLg"><p class="tm tc p4">No logs yet</p></div></div>
+          <div id="d-wh" class="nn"><div class="fx ac jb mb4"><h2 class="bo ts">Webhooks</h2><button class="b bp bsm" onclick="whM()">+ Add</button></div><div id="wL" class="c"><p class="tm tc p4">No webhooks</p></div></div>
+          <div id="d-pg" class="nn">
+            <div class="c">
+              <h3 style="font-weight:700;font-size:.9rem;margin-bottom:12px">🧪 API Playground</h3>
+              <div class="fx g3 mb4">
+                <select class="ip" id="pM" style="width:90px"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+                <input class="ip f1" id="pU" value="/api/domains" placeholder="/api/...">
+                <button class="b ba" onclick="rPg()">▶ Send</button>
+              </div>
+              <div class="ig mb4"><label>Headers</label><textarea class="ip" id="pH" rows="2" style="font-family:var(--fm);font-size:.72rem" placeholder='{"X-API-Key":"xm_..."}'></textarea></div>
+              <div class="ig mb4"><label>Body</label><textarea class="ip" id="pB" rows="3" style="font-family:var(--fm);font-size:.72rem" placeholder="{}"></textarea></div>
+              <div class="ig"><label>Response</label><pre id="pR" style="background:var(--bg0);padding:14px;border-radius:var(--r2);font-family:var(--fm);font-size:.72rem;overflow:auto;max-height:400px;color:var(--t2);white-space:pre-wrap">// Click ▶ Send to test any endpoint</pre></div>
+            </div>
+          </div>
+          <div id="d-sdk" class="nn">
+            <div class="sg" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
+              <div class="c ai"><h3 class="bo mb2 ts">🟨 JavaScript / Node.js</h3><pre class="mn2 tx" style="background:var(--bg0);padding:12px;border-radius:var(--r2);color:var(--a);overflow:auto;line-height:1.7">const res = await fetch('/api/inbox', {
+  method: 'POST',
+  headers: { 'X-API-Key': 'xm_your_key' }
+});
+const { data: inbox } = await res.json();
+
+// Get messages
+const msgs = await fetch(
+  `/api/inbox/${inbox.id}/messages`
+).then(r => r.json());</pre></div>
+              <div class="c ai"><h3 class="bo mb2 ts">🐍 Python</h3><pre class="mn2 tx" style="background:var(--bg0);padding:12px;border-radius:var(--r2);color:var(--a);overflow:auto;line-height:1.7">import requests
+
+headers = {'X-API-Key': 'xm_your_key'}
+inbox = requests.post(
+    '/api/inbox', headers=headers
+).json()['data']
+
+msgs = requests.get(
+    f'/api/inbox/{inbox["id"]}/messages'
+).json()</pre></div>
+              <div class="c ai"><h3 class="bo mb2 ts">🔵 cURL</h3><pre class="mn2 tx" style="background:var(--bg0);padding:12px;border-radius:var(--r2);color:var(--a);overflow:auto;line-height:1.7"># Create inbox
+curl -X POST /api/inbox \
+  -H "X-API-Key: xm_your_key"
+
+# Get messages
+curl /api/inbox/{id}/messages
+
+# SSE real-time stream
+curl -N /api/inbox/{id}/stream</pre></div>
+            </div>
+          </div>
+          <div id="d-doc" class="nn"><div class="c" id="dDc"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ ADMIN ═══════ -->
+    <div id="pg-admin" class="pg-v nn">
+      <div class="pg">
+        <div class="fx ac jb mb6">
+          <div>
+            <h1 style="font-size:1.5rem;font-weight:900;letter-spacing:-.03em;margin-bottom:3px">🛡️ Admin Console</h1>
+            <p class="tm ts">Platform monitoring, control &amp; analytics</p>
+          </div>
+          <div class="fx g2">
+            <button class="b bg bsm" onclick="aRef()">🔄 Refresh</button>
+            <button class="b bd bsm" onclick="tMt()" id="mtB">🚧 Maintenance</button>
+          </div>
+        </div>
+        <div class="sg mb6" id="aSt"></div>
+        <div class="tbs mb6" id="at">
+          <button class="tb2 on" onclick="aT('dash')">📊 Dashboard</button>
+          <button class="tb2" onclick="aT('users')">👥 Users</button>
+          <button class="tb2" onclick="aT('prov')">🌐 Providers</button>
+          <button class="tb2" onclick="aT('dom')">🔗 Domains</button>
+          <button class="tb2" onclick="aT('ibx')">📧 Inboxes</button>
+          <button class="tb2" onclick="aT('akey')">🔑 Keys</button>
+          <button class="tb2" onclick="aT('alg')">📋 Audit</button>
+          <button class="tb2" onclick="aT('ann')">📢 Announce</button>
+          <button class="tb2" onclick="aT('flg')">🚩 Flags</button>
+          <button class="tb2" onclick="aT('set')">⚙️ Settings</button>
+        </div>
+        <div id="aCt"></div>
+      </div>
+    </div>
+
+    <!-- ═══════ DOCS ═══════ -->
+    <div id="pg-docs" class="pg-v nn">
+      <div class="pg" style="max-width:900px" id="dP"></div>
+    </div>
+  </main>
+
+  <!-- Telegram popup -->
+  <div class="tg">
+    <div class="tgp nn" id="tgC">
+      <h4>💬 Join Community</h4>
+      <p>Updates, support &amp; more</p>
+      <div class="fx fc g2">
+        <a href="https://t.me/Xyron_Bots" target="_blank" rel="noopener" class="b bp bw">✈️ Telegram</a>
+        <a href="https://wa.me/959660590850" target="_blank" rel="noopener" class="b bs bw">💬 WhatsApp</a>
+      </div>
+      <p style="margin-top:10px;font-size:.62rem" class="tm">Built by <strong style="color:var(--t1)">@its_Xyron</strong></p>
+    </div>
+    <button class="tgb" onclick="document.getElementById('tgC').classList.toggle('nn')">✈️</button>
+  </div>
+
+  <div class="tc2" id="tC"></div>
+  <div id="mC"></div>
+</div>
+<script src="/js/app.js" defer></script>
+</body>
+</html>
