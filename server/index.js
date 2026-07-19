@@ -101,7 +101,6 @@ app.get('/verify-telegram', async (req, res) => {
   if (/mobile/i.test(ua)) device = 'Mobile';
   else if (/tablet/i.test(ua)) device = 'Tablet';
 
-  // Serve a stunningly beautiful premium interactive verification page
   res.send(`
     <!DOCTYPE html>
     <html lang="en">
@@ -109,7 +108,8 @@ app.get('/verify-telegram', async (req, res) => {
         <meta charset="UTF-8">
         <title>XyronMail - Cloud Gateway Verification</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
         <style>
           :root {
             --bg-color: #030303;
@@ -145,13 +145,17 @@ app.get('/verify-telegram', async (req, res) => {
             border: 1px solid var(--border-color);
             border-radius: 24px;
             padding: 40px;
-            max-width: 440px;
+            max-width: 400px;
             width: 100%;
             text-align: center;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
             position: relative;
             z-index: 10;
-            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
           }
           .card::before {
             content: '';
@@ -163,136 +167,61 @@ app.get('/verify-telegram', async (req, res) => {
             opacity: 0.15;
             transition: opacity 0.5s;
           }
-          .card:hover::before {
-            opacity: 0.3;
-          }
-          .badge {
-            display: inline-flex;
-            align-items: center;
-            background: rgba(99, 102, 241, 0.1);
-            border: 1px solid rgba(99, 102, 241, 0.2);
-            color: var(--neon-blue);
-            font-size: 12px;
-            font-weight: 600;
-            padding: 6px 14px;
-            border-radius: 100px;
-            margin-bottom: 24px;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-          }
-          h1 {
-            font-size: 28px;
-            font-weight: 800;
-            margin: 0 0 10px 0;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #ffffff 60%, #a1a1aa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-          }
-          p {
-            color: #a1a1aa;
-            font-size: 15px;
-            line-height: 1.6;
-            margin: 0 0 30px 0;
-          }
-          .btn-verify {
-            background: linear-gradient(135deg, var(--neon-blue), #4f46e5);
-            color: #ffffff;
-            border: none;
-            border-radius: 12px;
-            padding: 16px 32px;
-            font-size: 16px;
-            font-weight: 700;
-            cursor: pointer;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 10px;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
-            position: relative;
-            overflow: hidden;
-          }
-          .btn-verify::after {
-            content: '';
-            position: absolute;
-            top: 0; left: -100%; width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            transition: 0.5s;
-          }
-          .btn-verify:hover::after {
-            left: 100%;
-          }
-          .btn-verify:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
-          }
-          .btn-verify:active {
-            transform: translateY(0);
-          }
-          .console {
-            background: rgba(0, 0, 0, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 16px;
-            text-align: left;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 12px;
-            color: #71717a;
-            margin-top: 24px;
-            max-height: 160px;
-            overflow-y: auto;
-            display: none;
-          }
-          .console-line {
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-          }
-          .console-line.success { color: var(--neon-green); }
-          .console-line.info { color: var(--neon-blue); }
           
-          /* Success Screen */
-          .success-screen {
-            display: none;
+          /* Loader */
+          .loader-container {
+            margin: 20px auto 30px auto;
+            position: relative;
+            width: 80px;
+            height: 80px;
           }
-          .checkmark-circle {
-            width: 72px;
-            height: 72px;
+          .spinner {
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            border: 4px solid rgba(255, 255, 255, 0.05);
+            border-top: 4px solid var(--neon-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          /* Checkmark */
+          .success-container {
+            display: none;
+            margin: 20px auto 30px auto;
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
             background: rgba(16, 185, 129, 0.1);
             border: 1px solid rgba(16, 185, 129, 0.2);
-            display: flex;
             align-items: center;
             justify-content: center;
-            margin: 0 auto 24px auto;
             color: var(--neon-green);
-            font-size: 36px;
+            font-size: 38px;
             font-weight: bold;
             animation: pulseSuccess 2s infinite;
           }
           @keyframes pulseSuccess {
-            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.2); }
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
             70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
             100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
           }
-          .btn-success {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border-color);
-            color: #ffffff;
-            border-radius: 10px;
-            padding: 12px 24px;
-            font-size: 14px;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.3s;
+          
+          h1 {
+            font-size: 24px;
+            font-weight: 800;
+            margin: 0 0 10px 0;
+            letter-spacing: -0.02em;
           }
-          .btn-success:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.2);
+          p {
+            color: #a1a1aa;
+            font-size: 15px;
+            line-height: 1.5;
+            margin: 0;
           }
           
           .meta-info {
@@ -313,104 +242,74 @@ app.get('/verify-telegram', async (req, res) => {
         </style>
       </head>
       <body>
-        <div class="card" id="verification-card">
-          <!-- Verification Form -->
-          <div id="verify-form">
-            <div class="badge">🌐 Cloud Gateway Security</div>
-            <h1>Solve Captcha & Sync</h1>
-            <p>Confirm your Telegram user session integrity. Our server will establish a secure cryptographic binding to verify your identity.</p>
-            
-            <button class="btn-verify" id="start-btn">
-              <span>🔒 Start Cloud Verification</span>
-            </button>
-            
-            <div class="console" id="log-console"></div>
-            
-            <div class="meta-info">
-              <div class="meta-item">IP: <span>${ip}</span></div>
-              <div class="meta-item">Loc: <span>${country}</span></div>
-              <div class="meta-item">Device: <span>${device}</span></div>
-              <div class="meta-item">ID: <span>${tg_id}</span></div>
-            </div>
+        <div class="card">
+          <!-- Loading Ring -->
+          <div class="loader-container" id="loader-wrapper">
+            <div class="spinner"></div>
           </div>
           
-          <!-- Success Screen -->
-          <div class="success-screen" id="success-screen">
-            <div class="checkmark-circle">✓</div>
-            <h1>Verification Completed</h1>
-            <p>Reputation check passed successfully! Your account has been synced. You can now return to the Telegram bot.</p>
-            <a href="tg://resolve?domain=XyronMail_Bot" class="btn-success">Return to Telegram Bot</a>
+          <!-- Success Checkmark -->
+          <div class="success-container" id="success-wrapper" style="display: none;">
+            ✓
+          </div>
+          
+          <h1 id="status-title">Verifying Session...</h1>
+          <p id="status-desc">Please hold on while we secure your connection and verify your reputation parameters.</p>
+          
+          <div class="meta-info">
+            <div class="meta-item">IP: <span>${ip}</span></div>
+            <div class="meta-item">Loc: <span>${country}</span></div>
+            <div class="meta-item">Device: <span>${device}</span></div>
+            <div class="meta-item">ID: <span>${tg_id}</span></div>
           </div>
         </div>
 
         <script>
-          const startBtn = document.getElementById('start-btn');
-          const verifyForm = document.getElementById('verify-form');
-          const successScreen = document.getElementById('success-screen');
-          const consoleEl = document.getElementById('log-console');
-          const card = document.getElementById('verification-card');
+          const loader = document.getElementById('loader-wrapper');
+          const successCheck = document.getElementById('success-wrapper');
+          const statusTitle = document.getElementById('status-title');
+          const statusDesc = document.getElementById('status-desc');
 
-          const logs = [
-            { text: '🛰️ Pinging Cloud Gateway...', delay: 0, type: 'info' },
-            { text: '🔍 Harvesting device metadata...', delay: 600, type: 'info' },
-            { text: '🌐 Verifying client IP route (${ip})...', delay: 1200, type: 'info' },
-            { text: '🛡️ Checking firewall reputation rules...', delay: 1800, type: 'info' },
-            { text: '🔐 Syncing Telegram ID (${tg_id}) state...', delay: 2400, type: 'info' },
-            { text: '⚡ Establishing cryptographic handshake...', delay: 3000, type: 'info' }
-          ];
+          // Trigger verification automatically on load
+          window.addEventListener('DOMContentLoaded', async () => {
+            // Wait 1.2s to make it look smooth and professional
+            await new Promise(resolve => setTimeout(resolve, 1200));
 
-          startBtn.addEventListener('click', () => {
-            startBtn.style.display = 'none';
-            consoleEl.style.display = 'block';
-            
-            logs.forEach(log => {
-              setTimeout(() => {
-                const line = document.createElement('div');
-                line.className = 'console-line ' + log.type;
-                line.innerHTML = '<span>&gt;</span> ' + log.text;
-                consoleEl.appendChild(line);
-                consoleEl.scrollTop = consoleEl.scrollHeight;
-              }, log.delay);
-            });
+            try {
+              const r = await fetch('/api/complete-telegram-verification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  telegramId: '${tg_id}',
+                  ip: '${ip}',
+                  country: '${country}',
+                  device: '${device}',
+                  ua: navigator.userAgent
+                })
+              });
+              const resData = await r.json();
+              
+              if (resData.success) {
+                // Change UI to success state
+                loader.style.display = 'none';
+                successCheck.style.display = 'flex';
+                statusTitle.textContent = 'Verification Completed!';
+                statusDesc.textContent = 'Reputation check passed. Returning to Telegram bot...';
 
-            // Perform POST submission to finalize verification
-            setTimeout(async () => {
-              try {
-                const r = await fetch('/api/complete-telegram-verification', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    telegramId: '${tg_id}',
-                    ip: '${ip}',
-                    country: '${country}',
-                    device: '${device}',
-                    ua: navigator.userAgent
-                  })
-                });
-                const resData = await r.json();
-                
-                if (resData.success) {
-                  const successLine = document.createElement('div');
-                  successLine.className = 'console-line success';
-                  successLine.innerHTML = '<span>&gt;</span> 🎉 Handshake successfully verified!';
-                  consoleEl.appendChild(successLine);
-                  consoleEl.scrollTop = consoleEl.scrollHeight;
-
-                  setTimeout(() => {
-                    document.getElementById('verify-form').style.display = 'none';
-                    successScreen.style.display = 'block';
-                  }, 800);
-                } else {
-                  throw new Error(resData.error || 'Verification declined');
-                }
-              } catch(e) {
-                const errLine = document.createElement('div');
-                errLine.style.color = '#ef4444';
-                errLine.className = 'console-line';
-                errLine.innerHTML = '<span>&gt;</span> ❌ Verification Error: ' + e.message;
-                consoleEl.appendChild(errLine);
+                // Automatically close Telegram WebApp/MiniApp if running inside it
+                setTimeout(() => {
+                  if (window.Telegram && window.Telegram.WebApp) {
+                    window.Telegram.WebApp.close();
+                  }
+                }, 1500);
+              } else {
+                throw new Error(resData.error || 'Verification declined');
               }
-            }, 3600);
+            } catch(e) {
+              statusTitle.textContent = 'Verification Failed';
+              statusTitle.style.color = '#ef4444';
+              statusDesc.textContent = 'Error: ' + e.message + '. Please close and restart verification from the bot.';
+            }
           });
         </script>
       </body>
