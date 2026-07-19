@@ -1475,7 +1475,7 @@ const POOL = [
   'cnmeonline.com','cocovpn.com','coieo.com','collect.us','comeonthis.com',
   'correios.es','covfefe.us','cqzg.com','crapmail.org','crazespaces.com',
   'crusthost.com','cubiclink.com','cuirushi.com','cutout.club',
-  'cwtblpkwziuu.com','cyber-phone.eu','cybersout.com','cybertracker.net','czqjii8.com',
+  'cwtblpkwziuu.com','cyber-phone.eu','cybersout.com','cybertracker.net','czqjii8.com'
 ];
 
 // De-duplicate
@@ -1496,7 +1496,6 @@ class DomainPoolProvider {
   }
 
   async createAccount(address) {
-    // Route through guerrilla API for inbox creation
     const domain = address.split('@')[1];
     const user = address.split('@')[0];
     try {

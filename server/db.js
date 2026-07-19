@@ -259,7 +259,37 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
     CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
+
+    -- Pre-generated API keys pool
+    CREATE TABLE IF NOT EXISTS pre_generated_keys (
+      id TEXT PRIMARY KEY,
+      plain_key TEXT UNIQUE NOT NULL,
+      status TEXT DEFAULT 'unused' CHECK(status IN ('unused','assigned')),
+      assigned_to_telegram_id TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pre_generated_keys_status ON pre_generated_keys(status);
   `);
+
+  // Migration: add telegram_id columns dynamically if they do not exist
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN telegram_id TEXT");
+  } catch (e) {
+    // Ignore if column already exists
+  }
+  try {
+    db.exec("ALTER TABLE api_keys ADD COLUMN telegram_id TEXT");
+  } catch (e) {
+    // Ignore if column already exists
+  }
+  try {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_telegram ON users(telegram_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_api_keys_telegram ON api_keys(telegram_id)");
+  } catch (e) {
+    // Ignore
+  }
+
 
   // Insert default settings
   const insertSetting = db.prepare(`
@@ -356,6 +386,32 @@ function initializeDatabase() {
     }
   });
   insertProviders();
+
+  // Seed pre-generated keys
+  try {
+    const keyCount = db.prepare("SELECT COUNT(*) as c FROM pre_generated_keys").get().c;
+    if (keyCount < 1000) {
+      const crypto = require('crypto');
+      const { v4: uuidv4 } = require('uuid');
+      const insertPreKey = db.prepare("INSERT OR IGNORE INTO pre_generated_keys (id, plain_key, status) VALUES (?, ?, 'unused')");
+      
+      const seedTransaction = db.transaction((keys) => {
+        for (const k of keys) {
+          insertPreKey.run(k.id, k.plain_key);
+        }
+      });
+
+      const batch = [];
+      for (let i = 0; i < (1000 - keyCount); i++) {
+        const raw = `xm_dev_${crypto.randomBytes(24).toString('hex')}`;
+        batch.push({ id: `pre_${uuidv4().replace(/-/g, '').slice(0, 12)}`, plain_key: raw });
+      }
+      seedTransaction(batch);
+      console.log(`[DB] Seeded ${1000 - keyCount} pre-generated keys successfully.`);
+    }
+  } catch (e) {
+    console.error('[DB] Seeding pre-generated keys failed:', e.message);
+  }
 
   console.log('[DB] Database initialized successfully');
 }

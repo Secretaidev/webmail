@@ -291,4 +291,72 @@ router.get('/system-info', (req, res) => {
   });
 });
 
+/* ======================== Telegram Bot Key Sync ======================== */
+
+router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_key'), (req, res) => {
+  try {
+    const { telegramId, name } = req.body;
+    if (!telegramId) return res.status(400).json({ error: 'telegramId is required' });
+
+    // 1. Check if user already exists
+    let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+    if (!user) {
+      const bcrypt = require('bcryptjs');
+      const crypto = require('crypto');
+      const userId = `usr_tg_${telegramId}`;
+      const email = `tg_user_${telegramId}@xyronmail.com`;
+      const display_name = `Telegram User ${telegramId}`;
+      const password_hash = bcrypt.hashSync(`tg_pass_${telegramId}_${crypto.randomBytes(8).toString('hex')}`, 10);
+      
+      db.prepare(`
+        INSERT INTO users (id, email, password_hash, display_name, role, status, email_verified, telegram_id)
+        VALUES (?, ?, ?, ?, 'developer', 'active', 1, ?)
+      `).run(userId, email, password_hash, display_name, telegramId);
+
+      user = { id: userId, email, display_name, role: 'developer', status: 'active', telegram_id: telegramId };
+    }
+
+    // 2. Claim a pre-generated key or generate a fresh one
+    let rawKey = null;
+    let preGeneratedRecord = db.prepare("SELECT * FROM pre_generated_keys WHERE status = 'unused' ORDER BY created_at ASC LIMIT 1").get();
+    
+    if (preGeneratedRecord) {
+      rawKey = preGeneratedRecord.plain_key;
+    } else {
+      // Fallback if we run out of pre-generated keys
+      const crypto = require('crypto');
+      rawKey = `xm_dev_${crypto.randomBytes(24).toString('hex')}`;
+    }
+
+    const bcrypt = require('bcryptjs');
+    const keyPrefix = rawKey.slice(0, 8);
+    const keyHash = bcrypt.hashSync(rawKey, 10);
+    const keyId = `key_tg_${uuidv4().replace(/-/g, '').slice(0, 12)}`;
+
+    // 3. Insert into api_keys
+    db.prepare(`
+      INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, scopes, rate_limit, quota_daily, telegram_id)
+      VALUES (?, ?, ?, ?, ?, '["read","write"]', 500, 5000, ?)
+    `).run(keyId, user.id, name || `Telegram Key (${telegramId})`, keyHash, keyPrefix, telegramId);
+
+    // 4. Update status in pre_generated_keys if we claimed one
+    if (preGeneratedRecord) {
+      db.prepare("UPDATE pre_generated_keys SET status = 'assigned', assigned_to_telegram_id = ? WHERE id = ?")
+        .run(telegramId, preGeneratedRecord.id);
+    }
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: keyId,
+        key: rawKey,
+        prefix: keyPrefix,
+        telegramId
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create Telegram API key', message: err.message });
+  }
+});
+
 module.exports = router;

@@ -7,6 +7,8 @@ from telegram.ext import (
     Application,
     CommandHandler,
     CallbackQueryHandler,
+    MessageHandler,
+    filters,
     ContextTypes,
 )
 
@@ -327,6 +329,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         text=text,
         reply_markup=InlineKeyboardMarkup([
             [btn("📊 System Stats", "admin_stats", style="primary")],
+            [btn("🔑 Generate Developer API Key", "admin_gen_key", style="success")],
             [btn("🔄 Sync Domains", "admin_sync", style="success"), btn("💚 Check Health", "admin_health", style="success")],
             [btn("🛠 Toggle Maintenance", "admin_maint", style="danger")],
             [btn("🔙 Main Menu", "cb_menu", style="primary")]
@@ -696,10 +699,27 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             text="🛡️ <b>Admin Dashboard</b>\n\nChoose an action:",
             reply_markup=InlineKeyboardMarkup([
                 [btn("📊 System Stats", "admin_stats", style="primary")],
+                [btn("🔑 Generate Developer API Key", "admin_gen_key", style="success")],
                 [btn("🔄 Sync Domains", "admin_sync", style="success"), btn("💚 Check Health", "admin_health", style="success")],
                 [btn("🛠 Toggle Maintenance", "admin_maint", style="danger")],
                 [btn("🔙 Main Menu", "cb_menu", style="primary")]
             ]),
+            parse_mode="HTML"
+        )
+
+    elif data == "admin_gen_key":
+        if user_id != ADMIN_TG_ID:
+            await query.answer("Access denied!", show_alert=True)
+            return
+        await query.answer()
+        context.user_data["awaiting_tg_id"] = True
+        await query.edit_message_text(
+            text=(
+                "🔑 <b>Generate Developer API Key</b>\n\n"
+                "Please enter/send the Telegram ID of the user you want to generate and sync the API key for.\n\n"
+                "Send the numeric Telegram ID as a message:"
+            ),
+            reply_markup=InlineKeyboardMarkup([[btn("🔙 Cancel", "admin_menu", style="danger")]]),
             parse_mode="HTML"
         )
         
@@ -781,6 +801,87 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         except Exception as e:
             await query.answer(f"❌ Error: {str(e)}", show_alert=True)
 
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    if not user:
+        return
+    user_id = user.id
+    text = update.message.text.strip()
+    
+    # Track all users
+    all_users.add(user_id)
+    
+    # Check if admin is entering a Telegram ID
+    if user_id == ADMIN_TG_ID and context.user_data.get("awaiting_tg_id"):
+        context.user_data["awaiting_tg_id"] = False
+        
+        # Validate Telegram ID
+        if not text.isdigit():
+            await update.message.reply_text(
+                "❌ <b>Invalid Telegram ID.</b> It must be a number.\n"
+                "Please go back to the admin menu and try again.",
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                parse_mode="HTML"
+            )
+            return
+            
+        tg_id = int(text)
+        await update.message.reply_text(f"⏳ Generating/Syncing API key for Telegram ID <code>{tg_id}</code>...", parse_mode="HTML")
+        
+        try:
+            res = await call_api("POST", "/api/admin/generate-telegram-key", json_data={"telegramId": str(tg_id)}, use_admin=True)
+            if not res.get("success"):
+                raise Exception(res.get("error", "Error creating key"))
+                
+            key_data = res["data"]
+            api_key = key_data["key"]
+            prefix = key_data["prefix"]
+            
+            admin_msg = (
+                "🔑 <b>API Key Generated & Synced Successfully!</b>\n\n"
+                f"👤 <b>Telegram ID:</b> <code>{tg_id}</code>\n"
+                f"🔑 <b>API Key:</b> <code>{api_key}</code>\n"
+                f"📌 <b>Prefix:</b> <code>{prefix}</code>\n\n"
+                "⚠️ <i>Please copy this key. It will not be shown again in plain text.</i>\n\n"
+                "This key has developer read/write permissions and is synced to the user's ID."
+            )
+            
+            await update.message.reply_text(
+                admin_msg,
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                parse_mode="HTML"
+            )
+            
+            # Try to notify the target user directly if possible
+            try:
+                user_msg = (
+                    "🎉 <b>New Developer API Key Assigned!</b>\n\n"
+                    "The admin has generated and synced a XyronMail developer API key for your Telegram account.\n\n"
+                    f"🔑 <b>Your API Key:</b> <code>{api_key}</code>\n\n"
+                    "You can now use this API key to integrate XyronMail's fast temporary email services directly into your own bot or website!\n"
+                    "Keep this key secure."
+                )
+                await context.bot.send_message(chat_id=tg_id, text=user_msg, parse_mode="HTML")
+                await update.message.reply_text(f"✅ Notification sent directly to User <code>{tg_id}</code>.", parse_mode="HTML")
+            except Exception as e:
+                logger.warning(f"Could not notify user {tg_id} directly (they might not have started the bot): {e}")
+                await update.message.reply_text(f"⚠️ User <code>{tg_id}</code> could not be notified directly (they haven't started this bot yet). Please send them the key manually.", parse_mode="HTML")
+                
+        except Exception as e:
+            await update.message.reply_text(
+                f"❌ <b>Error:</b> {html_escape(str(e))}",
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                parse_mode="HTML"
+            )
+        return
+
+    # Normal user chat: if not awaiting TG ID, reply friendly
+    await update.message.reply_text(
+        "👋 Use the buttons below or commands like /new to manage your temporary mailboxes.",
+        reply_markup=InlineKeyboardMarkup([[btn("📱 Open Dashboard", "cb_menu", style="primary")]]),
+        parse_mode="HTML"
+    )
+
 # ═══════════════════ MAIN STARTUP ═══════════════════
 def main() -> None:
     print("🚀 Initializing XyronMail Telegram Bot...")
@@ -797,6 +898,7 @@ def main() -> None:
     app.add_handler(CommandHandler("admin", admin_command))
     
     app.add_handler(CallbackQueryHandler(handle_callback))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("⚡ XyronMail Bot is live and listening!")
     app.run_polling(drop_pending_updates=True)

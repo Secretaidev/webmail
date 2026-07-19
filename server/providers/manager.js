@@ -12,7 +12,7 @@ const path = require('path');
 
 const PROVIDER_FILES = {};
 const providerDir = path.join(__dirname);
-const skipFiles = ['manager.js'];
+const skipFiles = ['manager.js', 'update_pool.js', 'inboxes.js'];
 
 fs.readdirSync(providerDir)
   .filter(f => f.endsWith('.js') && !skipFiles.includes(f))
