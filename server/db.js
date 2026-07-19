@@ -38,7 +38,7 @@ db.pragma('busy_timeout = 5000');
 const { uploadDatabaseToCloud } = require('./db-sync');
 setInterval(() => {
   uploadDatabaseToCloud();
-}, 30000); // Back up every 30 seconds
+}, 60000); // Back up every 60 seconds (reduced frequency to lower write pressure)
 
 // Hook into graceful shutdowns to upload one final time
 function handleExitSync() {
@@ -329,6 +329,20 @@ function initializeDatabase() {
     db.exec("CREATE INDEX IF NOT EXISTS idx_api_keys_telegram ON api_keys(telegram_id)");
   } catch (e) {
     // Ignore
+  }
+
+  // Add monitor_ends_at column to inboxes for OTP monitoring timer feature
+  try {
+    db.exec("ALTER TABLE inboxes ADD COLUMN monitor_ends_at TEXT DEFAULT NULL");
+  } catch (e) {
+    // Ignore if column already exists
+  }
+
+  // Add monitor_chat_id column for sending bot messages
+  try {
+    db.exec("ALTER TABLE inboxes ADD COLUMN monitor_chat_id TEXT DEFAULT NULL");
+  } catch (e) {
+    // Ignore if column already exists
   }
 
   // Create telegram_verifications table for IP tracking

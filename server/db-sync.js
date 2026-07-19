@@ -1,13 +1,17 @@
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'xyronmail.db');
 const PG_URI = process.env.DATABASE_URL || 'postgresql://postgres.mjttwsrbwedummfpnqhn:adityarajsingh@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres';
 
+// Track if upload is currently running to prevent concurrent uploads
+let isUploading = false;
+
 async function syncDatabaseFromCloud() {
   console.log('🔄 Checking Supabase Cloud PostgreSQL for database sync...');
-  const client = new Client({ connectionString: PG_URI });
+  const client = new Client({ connectionString: PG_URI, connectionTimeoutMillis: 10000 });
   try {
     await client.connect();
     
@@ -35,36 +39,52 @@ async function syncDatabaseFromCloud() {
   } catch (err) {
     console.error('⚠️ Failed to sync database from cloud (using local cache if available):', err.message);
   } finally {
-    try {
-      await client.end();
-    } catch(e) {}
+    try { await client.end(); } catch(e) {}
   }
 }
 
+/**
+ * Upload DB safely using SQLite's online backup API to avoid WAL corruption.
+ * We use better-sqlite3's .backup() method which is the correct way to backup
+ * an open SQLite database (handles WAL correctly).
+ */
 async function uploadDatabaseToCloud() {
-  if (!fs.existsSync(DB_PATH)) {
-    console.log('⚠️ Database file does not exist locally. Skipping upload.');
-    return;
-  }
-  
-  console.log('💾 Uploading local database backup to Supabase Cloud PostgreSQL...');
-  const client = new Client({ connectionString: PG_URI });
+  if (isUploading) return; // Prevent concurrent uploads
+  if (!fs.existsSync(DB_PATH)) return;
+
+  isUploading = true;
+  const tmpPath = path.join(os.tmpdir(), `xyronmail_backup_${Date.now()}.db`);
+
   try {
-    await client.connect();
-    const data = fs.readFileSync(DB_PATH);
-    await client.query(`
-      INSERT INTO xyron_db_backups (id, file_data, updated_at)
-      VALUES (1, $1, NOW())
-      ON CONFLICT (id) DO UPDATE
-      SET file_data = EXCLUDED.file_data, updated_at = NOW();
-    `, [data]);
-    console.log('✅ Database backup successfully uploaded to Supabase Cloud.');
+    // Use better-sqlite3's built-in backup() API — safe with WAL mode
+    const Database = require('better-sqlite3');
+    const srcDb = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+
+    // Perform hot backup to temp file (handles WAL correctly)
+    await srcDb.backup(tmpPath);
+    srcDb.close();
+
+    const data = fs.readFileSync(tmpPath);
+    
+    const client = new Client({ connectionString: PG_URI, connectionTimeoutMillis: 10000 });
+    try {
+      await client.connect();
+      await client.query(`
+        INSERT INTO xyron_db_backups (id, file_data, updated_at)
+        VALUES (1, $1, NOW())
+        ON CONFLICT (id) DO UPDATE
+        SET file_data = EXCLUDED.file_data, updated_at = NOW();
+      `, [data]);
+      console.log('✅ Database backup successfully uploaded to Supabase Cloud.');
+    } finally {
+      try { await client.end(); } catch(e) {}
+    }
   } catch (err) {
     console.error('⚠️ Database backup upload failed:', err.message);
   } finally {
-    try {
-      await client.end();
-    } catch(e) {}
+    // Clean up temp file
+    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch(e) {}
+    isUploading = false;
   }
 }
 

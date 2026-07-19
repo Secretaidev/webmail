@@ -307,8 +307,110 @@ router.patch('/inbox/:inboxId/messages/:msgId/star', (req, res) => {
 });
 
 /**
- * GET /api/inbox/:id/stream - SSE for real-time updates
+ * POST /api/inbox/:id/monitor - Start OTP monitoring (max 10 minutes)
  */
+router.post('/inbox/:id/monitor', (req, res) => {
+  try {
+    const inbox = db.prepare('SELECT * FROM inboxes WHERE id = ?').get(req.params.id);
+    if (!inbox) return res.status(404).json({ error: 'Inbox not found' });
+
+    if (inbox.user_session_id !== req.sessionId && inbox.user_id !== req.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const minutes = Math.min(Math.max(parseInt(req.body.minutes) || 2, 1), 10);
+    const endsAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+    const chatId = req.body.chatId || null;
+
+    db.prepare('UPDATE inboxes SET monitor_ends_at = ?, monitor_chat_id = ? WHERE id = ?')
+      .run(endsAt, chatId, req.params.id);
+
+    res.json({
+      success: true,
+      monitorEndsAt: endsAt,
+      minutesSet: minutes,
+      remainingSeconds: minutes * 60
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to start monitoring', message: err.message });
+  }
+});
+
+/**
+ * GET /api/inbox/:id/monitor-status - Check monitoring status
+ */
+router.get('/inbox/:id/monitor-status', (req, res) => {
+  try {
+    const inbox = db.prepare('SELECT monitor_ends_at, email_address FROM inboxes WHERE id = ?').get(req.params.id);
+    if (!inbox) return res.status(404).json({ error: 'Inbox not found' });
+
+    const now = Date.now();
+    const endsAt = inbox.monitor_ends_at ? new Date(inbox.monitor_ends_at).getTime() : null;
+    const isActive = endsAt && endsAt > now;
+    const remainingSeconds = isActive ? Math.floor((endsAt - now) / 1000) : 0;
+
+    res.json({
+      success: true,
+      isActive,
+      remainingSeconds,
+      monitorEndsAt: inbox.monitor_ends_at
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check monitor status', message: err.message });
+  }
+});
+
+/**
+ * PATCH /api/inbox/:id/extend - Extend OTP monitoring by X more minutes (max 10 per extension)
+ */
+router.patch('/inbox/:id/extend', (req, res) => {
+  try {
+    const inbox = db.prepare('SELECT * FROM inboxes WHERE id = ?').get(req.params.id);
+    if (!inbox) return res.status(404).json({ error: 'Inbox not found' });
+
+    if (inbox.user_session_id !== req.sessionId && inbox.user_id !== req.userId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const minutes = Math.min(Math.max(parseInt(req.body.minutes) || 2, 1), 10);
+    
+    // If monitoring is still active, extend from current end. Else start fresh.
+    const now = Date.now();
+    const currentEnds = inbox.monitor_ends_at ? new Date(inbox.monitor_ends_at).getTime() : now;
+    const baseTime = currentEnds > now ? currentEnds : now;
+    const newEndsAt = new Date(baseTime + minutes * 60 * 1000).toISOString();
+
+    db.prepare('UPDATE inboxes SET monitor_ends_at = ? WHERE id = ?').run(newEndsAt, req.params.id);
+
+    const remainingSeconds = Math.floor((new Date(newEndsAt).getTime() - now) / 1000);
+
+    res.json({
+      success: true,
+      monitorEndsAt: newEndsAt,
+      minutesAdded: minutes,
+      remainingSeconds
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to extend monitoring', message: err.message });
+  }
+});
+
+/**
+ * DELETE /api/inbox/:id/monitor - Stop monitoring
+ */
+router.delete('/inbox/:id/monitor', (req, res) => {
+  try {
+    const inbox = db.prepare('SELECT * FROM inboxes WHERE id = ?').get(req.params.id);
+    if (!inbox) return res.status(404).json({ error: 'Inbox not found' });
+
+    db.prepare('UPDATE inboxes SET monitor_ends_at = NULL WHERE id = ?').run(req.params.id);
+    res.json({ success: true, message: 'Monitoring stopped' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to stop monitoring', message: err.message });
+  }
+});
+
+
 router.get('/inbox/:id/stream', (req, res) => {
   const inbox = db.prepare('SELECT * FROM inboxes WHERE id = ?').get(req.params.id);
   if (!inbox) return res.status(404).json({ error: 'Inbox not found' });

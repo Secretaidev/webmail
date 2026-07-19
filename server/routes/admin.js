@@ -439,4 +439,21 @@ router.get('/telegram-verifications', (req, res) => {
   }
 });
 
+/* ======================== Clear All Data ======================== */
+
+router.delete('/clear-all', auditLog('admin.clear_all', 'system'), (req, res) => {
+  try {
+    const clearAll = db.transaction(() => {
+      db.prepare('DELETE FROM messages').run();
+      db.prepare('DELETE FROM attachments').run();
+      db.prepare('DELETE FROM inboxes').run();
+    });
+    clearAll();
+    res.json({ success: true, message: 'All inboxes and messages cleared successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to clear all data', message: err.message });
+  }
+});
+
 module.exports = router;
+

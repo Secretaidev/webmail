@@ -199,21 +199,6 @@ app.get('/verify-telegram', async (req, res) => {
             margin: 0;
           }
           
-          .meta-info {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 30px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            text-align: left;
-            font-size: 12px;
-            color: #71717a;
-          }
-          .meta-item span {
-            color: #d4d4d8;
-            font-weight: 600;
-          }
         </style>
       </head>
       <body>
@@ -229,14 +214,7 @@ app.get('/verify-telegram', async (req, res) => {
           </div>
           
           <h1 id="status-title">Verifying Session...</h1>
-          <p id="status-desc">Please hold on while we secure your connection and verify your reputation parameters.</p>
-          
-          <div class="meta-info">
-            <div class="meta-item">IP: <span>${ip}</span></div>
-            <div class="meta-item">Loc: <span>${country}</span></div>
-            <div class="meta-item">Device: <span>${device}</span></div>
-            <div class="meta-item">ID: <span id="tg-id-display">Detecting...</span></div>
-          </div>
+          <p id="status-desc">Please hold on while we secure your connection.</p>
         </div>
 
         <script>
@@ -244,7 +222,6 @@ app.get('/verify-telegram', async (req, res) => {
           const successCheck = document.getElementById('success-wrapper');
           const statusTitle = document.getElementById('status-title');
           const statusDesc = document.getElementById('status-desc');
-          const tgIdEl = document.getElementById('tg-id-display');
 
           // Trigger verification automatically on load
           window.addEventListener('DOMContentLoaded', async () => {
@@ -267,15 +244,11 @@ app.get('/verify-telegram', async (req, res) => {
             // If still missing, fail immediately
             if (!tg_id) {
               loader.style.display = 'none';
-              tgIdEl.textContent = 'None';
               statusTitle.textContent = 'Verification Failed';
               statusTitle.style.color = '#ef4444';
               statusDesc.textContent = 'Telegram Session ID could not be detected. Please open this Mini App inside your Telegram bot.';
               return;
             }
-
-            // Update DOM text dynamically with ID
-            tgIdEl.textContent = tg_id;
 
             try {
               const r = await fetch('/api/complete-telegram-verification', {
