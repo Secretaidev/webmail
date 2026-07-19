@@ -559,6 +559,12 @@ function devTab(t){
   if(t==='lg')loadDevLogs();
   if(t==='wh')loadWebhooks();
   if(t==='doc')renderDocs($('dDc'));
+  if(t==='pg'){
+    const pgEl=$('d-pg');if(!pgEl)return;
+    if(!S.user||S.user.role!=='admin'){
+      pgEl.innerHTML=`<div class="c tc p8" style="border:1px solid var(--bdr)"><div style="width:40px;height:40px;background:var(--bg2);border:1px solid var(--bdr);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3 style="font-size:1rem;font-weight:600;margin-bottom:8px">Admin Only</h3><p class="tm ts">The API Playground is restricted to admin accounts only.</p></div>`;
+    }
+  }
 }
 async function loadKeys(){
   const c=$('kL');if(!c)return;

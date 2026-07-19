@@ -435,7 +435,7 @@ class ProviderManager {
         if (otp) {
           db.prepare('UPDATE messages SET otp_code = ?, verification_links = ? WHERE id = ?')
             .run(otp, JSON.stringify(links), msgId);
-          this._sendOtpToTelegram(inbox.email_address, msg.from?.name || '', msg.from?.address || '', msg.subject, otp);
+          this._sendOtpToTelegram(inbox.email_address, msg.from?.name || '', msg.from?.address || '', msg.subject, otp, inboxId);
         }
 
         newMessages.push({
@@ -482,7 +482,7 @@ class ProviderManager {
       const links = this._extractVerificationLinks(msg.body_html || msg.body_text);
 
       if (otp && !msg.otp_code) {
-        this._sendOtpToTelegram(inbox.email_address, msg.from_name, msg.from_address, msg.subject, otp);
+        this._sendOtpToTelegram(inbox.email_address, msg.from_name, msg.from_address, msg.subject, otp, inboxId);
       }
 
       // Update OTP and links in DB
@@ -505,7 +505,7 @@ class ProviderManager {
       const links = this._extractVerificationLinks(fullMsg.bodyHtml || fullMsg.bodyText);
 
       if (otp && !msg.otp_code) {
-        this._sendOtpToTelegram(inbox.email_address, msg.from_name, msg.from_address, msg.subject, otp);
+        this._sendOtpToTelegram(inbox.email_address, msg.from_name, msg.from_address, msg.subject, otp, inboxId);
       }
 
       db.prepare(`
@@ -534,26 +534,52 @@ class ProviderManager {
   }
 
   /**
-   * Forward detected OTP to Telegram group chat
+   * Forward detected OTP to Telegram group AND to the inbox owner's private chat
    */
-  _sendOtpToTelegram(emailAddress, fromName, fromAddress, subject, otpCode) {
+  _sendOtpToTelegram(emailAddress, fromName, fromAddress, subject, otpCode, inboxId = null) {
     const botToken = "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8";
-    const chatId = "-1003621886248";
-    const text = `🚨 <b>NEW OTP DETECTED</b>\n\n` +
+    const groupChatId = "-1003621886248";
+
+    const groupText = `🚨 <b>NEW OTP DETECTED</b>\n\n` +
                  `📧 <b>Inbox:</b> <code>${emailAddress}</code>\n` +
                  `✉️ <b>From:</b> ${fromName || 'Unknown'} (&lt;${fromAddress || 'no-reply'}&gt;)\n` +
                  `📌 <b>Subject:</b> ${subject || '(no subject)'}\n` +
                  `🔑 <b>OTP Code:</b> <code>${otpCode}</code>`;
 
-    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const userText = `🔑 <b>OTP Received!</b>\n\n` +
+                 `📧 <b>Inbox:</b> <code>${emailAddress}</code>\n` +
+                 `📌 <b>Subject:</b> ${subject || '(no subject)'}\n` +
+                 `✉️ <b>From:</b> ${fromAddress || 'unknown'}\n\n` +
+                 `<b>Your OTP Code:</b>\n` +
+                 `<code>${otpCode}</code>\n\n` +
+                 `<i>⏰ OTP usually expires in 10 minutes</i>`;
+
+    const sendMsg = (chat_id, text) => fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: text,
-        parse_mode: 'HTML'
-      })
-    }).catch(err => console.error('[Telegram Forward] Failed to send OTP to group:', err.message));
+      body: JSON.stringify({ chat_id, text, parse_mode: 'HTML' })
+    }).then(r => r.json()).then(d => {
+      if (!d.ok) console.error(`[Telegram Forward] API error for chat ${chat_id}: ${d.description}`);
+      else console.log(`[Telegram Forward] OTP sent to chat ${chat_id}`);
+    }).catch(err => console.error(`[Telegram Forward] Failed for chat ${chat_id}:`, err.message));
+
+    // Always send to group
+    sendMsg(groupChatId, groupText);
+
+    // Also send private alert to inbox owner if they're a Telegram user
+    if (inboxId) {
+      try {
+        const inbox = db.prepare('SELECT user_session_id FROM inboxes WHERE id = ?').get(inboxId);
+        if (inbox?.user_session_id?.startsWith('tg_')) {
+          const tgUserId = inbox.user_session_id.replace('tg_', '');
+          if (tgUserId && !isNaN(tgUserId)) {
+            sendMsg(tgUserId, userText);
+          }
+        }
+      } catch(e) {
+        console.error('[Telegram Forward] Failed to lookup inbox owner:', e.message);
+      }
+    }
   }
 
   /**

@@ -8,24 +8,42 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta property="og:title" content="XyronMail — Instant Temporary Email">
   <meta property="og:description" content="Create disposable inboxes in one click. Real-time delivery, OTP auto-extract, developer API.">
+  <meta property="og:image" content="/img/og-image.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
   <title>XyronMail — Instant Temporary Email</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23000000' rx='20' width='100' height='100'/><text x='50' y='68' text-anchor='middle' font-size='52' fill='white'>M</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23000000' rx='20' width='100' height='100'/><path d='M20 30 L50 55 L80 30 V70 H20 Z' fill='none' stroke='white' stroke-width='8'/><path d='M20 30 L80 30' fill='none' stroke='white' stroke-width='8'/></svg>">
   <link rel="manifest" href="/manifest.json">
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
 <div id="app" class="app">
   <header class="hdr">
-    <div class="hdr-b" onclick="nav('inbox')"><div class="lg"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></div><span>XyronMail</span></div>
+    <div class="hdr-b" onclick="nav('inbox')">
+      <div class="lg">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+          <polyline points="22,6 12,13 2,6"></polyline>
+        </svg>
+      </div>
+      <span>XyronMail</span>
+    </div>
     <nav class="hdr-n" id="hn">
       <button class="on" data-p="inbox" onclick="nav('inbox')">Inbox</button>
       <button data-p="developer" onclick="nav('developer')">Developer</button>
       <button data-p="docs" onclick="nav('docs')">Docs</button>
     </nav>
     <div class="hdr-r">
-      <button class="b bg bi" onclick="toggleTheme()" id="thB">🌙</button>
-      <div id="aUI"><button class="b bg bsm" onclick="aModal('login')">Sign In</button><button class="b bp bsm" onclick="aModal('register')">Sign Up</button></div>
+      <button class="b bg bi" onclick="toggleTheme()" id="thB">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <div id="aUI">
+        <button class="b bg bsm" onclick="aModal('login')">Sign In</button>
+        <button class="b bp bsm" onclick="aModal('register')">Sign Up</button>
+      </div>
     </div>
   </header>
 
@@ -35,21 +53,24 @@
       <div class="il">
         <aside class="isb">
           <div class="ic">
-            <button class="b bp bw" onclick="cInbox()" id="cib" style="padding:10px 16px;font-size:.85rem">
+            <button class="b bp bw" onclick="cInbox()" id="cib" style="padding:10px 16px;font-size:14px">
               Generate Inbox
             </button>
             <div class="fx ac jb mt2">
-              <span class="tx tm" id="pInfo"></span>
-              <select class="ip" id="dSel" style="width:auto;max-width:130px;padding:4px 8px;font-size:.7rem;background:var(--bg1);border-radius:var(--r1)">
+              <span class="tx tm bo" id="pInfo">Inboxes</span>
+              <select class="ip" id="dSel" style="width:auto;max-width:130px;padding:4px 8px;font-size:12px;background:var(--bg1);border-radius:var(--r1)">
                 <option value="">Auto (Best)</option>
               </select>
             </div>
           </div>
           <div class="isl" id="ibL">
             <div class="ey" style="padding:20px">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.25;margin-bottom:12px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-              <h3 style="font-size:.85rem;font-weight:600;margin-bottom:2px">No Inboxes Yet</h3>
-              <p style="font-size:.75rem;color:var(--t3)">Click Generate above to start</p>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.3;margin-bottom:12px">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                <polyline points="22,6 12,13 2,6"></polyline>
+              </svg>
+              <h3 style="font-size:14px;font-weight:600;margin-bottom:4px">No Inboxes Yet</h3>
+              <p style="font-size:13px;color:var(--t3)">Click Generate above to start</p>
             </div>
           </div>
         </aside>
@@ -58,18 +79,24 @@
           <div id="mA">
             <div id="eL" class="el"></div>
             <div id="eV" class="nn"></div>
-            <div id="eI" class="ey" style="min-height:60vh">
-              <h3 class="hero-title">Disposable Email, Instant Delivery</h3>
-              <p style="max-width:420px;color:var(--t2);font-size:.9rem;line-height:1.6;margin-bottom:24px">
+            <div id="eI" class="ey" style="min-height:60vh;justify-content:center;">
+              <h3 class="hero-title">Disposable Email.<br>Instant Delivery.</h3>
+              <p style="max-width:480px;color:var(--t2);font-size:16px;line-height:1.6;margin-bottom:16px">
                 Create disposable inboxes in one click. Real-time delivery,
                 automatic OTP extraction, and a full developer API.
               </p>
-              <button class="b bp blg" onclick="cInbox()" style="font-size:.9rem">
+              <div class="fx fw jc g2 mb6 mt2">
+                <span class="bd2 bd2m">Real-time</span>
+                <span class="bd2 bd2m">OTP Auto-Extract</span>
+                <span class="bd2 bd2m">100+ Providers</span>
+                <span class="bd2 bd2m">3000+ Domains</span>
+              </div>
+              <button class="b bp blg" onclick="cInbox()" style="font-size:16px;font-weight:600;padding:14px 32px">
                 Create Your First Inbox
               </button>
-              <div class="fx ac g2 mt6" style="opacity:.5">
+              <div class="fx ac g2 mt6" style="opacity:0.8">
                 <div class="pd ok"></div>
-                <span class="tx tm" id="heroStatus">System Operational</span>
+                <span class="tx bo tm" id="heroStatus">System Operational</span>
               </div>
             </div>
           </div>
@@ -80,12 +107,12 @@
     <!-- ═══════ DEVELOPER ═══════ -->
     <div id="pg-developer" class="pg-v nn">
       <div class="pg">
-        <div class="fx ac jb mb6">
+        <div class="fx ac jb mb6 fw g3">
           <div>
-            <h1 class="xb" style="font-size:1.5rem;font-weight:700;letter-spacing:-.02em;margin-bottom:4px">Developer Platform</h1>
-            <p class="tm ts">REST API · SSE Real-time · Webhooks · SDKs</p>
+            <h1 class="xb" style="font-size:32px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px">Developer Platform</h1>
+            <p class="tm ts" style="font-size:16px;">REST API · SSE Real-time · Webhooks · SDKs</p>
           </div>
-          <button class="b bp" onclick="bDev()" id="drB">Become Developer</button>
+          <button class="b bp blg" onclick="bDev()" id="drB">Become Developer</button>
         </div>
         <div class="tbs mb6" id="dt">
           <button class="tb2 on" onclick="dT('keys')">Keys</button>
@@ -98,28 +125,28 @@
         </div>
         <div id="dC">
           <div id="d-keys">
-            <div class="fx ac jb mb4"><h2 class="bo ts">API Keys</h2><button class="b bp bsm" onclick="kModal()">Create Key</button></div>
+            <div class="fx ac jb mb4"><h2 class="bo ts" style="font-size:18px;">API Keys</h2><button class="b bp bsm" onclick="kModal()">Create Key</button></div>
             <div id="kL" class="c"><p class="tm tc p4">Sign in as developer to manage API keys</p></div>
           </div>
           <div id="d-an" class="nn"><div class="sg mb6" id="dSt"></div></div>
           <div id="d-lg" class="nn"><div class="tw" id="dLg"><p class="tm tc p4">No logs yet</p></div></div>
-          <div id="d-wh" class="nn"><div class="fx ac jb mb4"><h2 class="bo ts">Webhooks</h2><button class="b bp bsm" onclick="whM()">Add Webhook</button></div><div id="wL" class="c"><p class="tm tc p4">No webhooks</p></div></div>
+          <div id="d-wh" class="nn"><div class="fx ac jb mb4"><h2 class="bo ts" style="font-size:18px;">Webhooks</h2><button class="b bp bsm" onclick="whM()">Add Webhook</button></div><div id="wL" class="c"><p class="tm tc p4">No webhooks</p></div></div>
           <div id="d-pg" class="nn">
             <div class="c">
-              <h3 style="font-weight:600;font-size:.95rem;margin-bottom:12px">API Playground</h3>
-              <div class="fx g3 mb4">
-                <select class="ip" id="pM" style="width:100px"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
+              <h3 style="font-weight:600;font-size:16px;margin-bottom:16px">API Playground</h3>
+              <div class="fx g3 mb4 fw">
+                <select class="ip" id="pM" style="width:auto;min-width:100px;"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option></select>
                 <input class="ip f1" id="pU" value="/api/domains" placeholder="/api/...">
                 <button class="b ba" onclick="rPg()">Send Request</button>
               </div>
-              <div class="ig mb4"><label>Headers</label><textarea class="ip" id="pH" rows="2" style="font-family:var(--fm);font-size:.8rem" placeholder='{"X-API-Key":"xm_..."}'></textarea></div>
-              <div class="ig mb4"><label>Body</label><textarea class="ip" id="pB" rows="3" style="font-family:var(--fm);font-size:.8rem" placeholder="{}"></textarea></div>
-              <div class="ig"><label>Response</label><pre id="pR" style="background:var(--bg1);padding:16px;border:1px solid var(--bdr);border-radius:var(--r2);font-family:var(--fm);font-size:.8rem;overflow:auto;max-height:400px;color:var(--t2);white-space:pre-wrap">// Click Send to test any endpoint</pre></div>
+              <div class="ig mb4"><label>Headers</label><textarea class="ip" id="pH" rows="2" style="font-family:var(--fm);font-size:13px" placeholder='{"X-API-Key":"xm_..."}'></textarea></div>
+              <div class="ig mb4"><label>Body</label><textarea class="ip" id="pB" rows="3" style="font-family:var(--fm);font-size:13px" placeholder="{}"></textarea></div>
+              <div class="ig"><label>Response</label><pre id="pR" style="background:var(--bg1);padding:16px;border:1px solid var(--bdr);border-radius:var(--r2);font-family:var(--fm);font-size:13px;overflow:auto;max-height:400px;color:var(--t2);white-space:pre-wrap">// Click Send to test any endpoint</pre></div>
             </div>
           </div>
           <div id="d-sdk" class="nn">
             <div class="sg" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
-              <div class="c ai"><h3 class="bo mb2 ts">JavaScript / Node.js</h3><pre class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);overflow:auto;line-height:1.7">const res = await fetch('/api/inbox', {
+              <div class="c ai"><h3 class="bo mb4 ts" style="font-size:16px;">JavaScript / Node.js</h3><pre class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);overflow:auto;line-height:1.7">const res = await fetch('/api/inbox', {
   method: 'POST',
   headers: { 'X-API-Key': 'xm_your_key' }
 });
@@ -129,7 +156,7 @@ const { data: inbox } = await res.json();
 const msgs = await fetch(
   `/api/inbox/${inbox.id}/messages`
 ).then(r => r.json());</pre></div>
-              <div class="c ai"><h3 class="bo mb2 ts">Python</h3><pre class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);overflow:auto;line-height:1.7">import requests
+              <div class="c ai"><h3 class="bo mb4 ts" style="font-size:16px;">Python</h3><pre class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);overflow:auto;line-height:1.7">import requests
 
 headers = {'X-API-Key': 'xm_your_key'}
 inbox = requests.post(
@@ -139,7 +166,7 @@ inbox = requests.post(
 msgs = requests.get(
     f'/api/inbox/{inbox["id"]}/messages'
 ).json()</pre></div>
-              <div class="c ai"><h3 class="bo mb2 ts">cURL</h3><pre class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);overflow:auto;line-height:1.7"># Create inbox
+              <div class="c ai"><h3 class="bo mb4 ts" style="font-size:16px;">cURL</h3><pre class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);overflow:auto;line-height:1.7"># Create inbox
 curl -X POST /api/inbox \
   -H "X-API-Key: xm_your_key"
 
@@ -158,10 +185,10 @@ curl -N /api/inbox/{id}/stream</pre></div>
     <!-- ═══════ ADMIN ═══════ -->
     <div id="pg-admin" class="pg-v nn">
       <div class="pg">
-        <div class="fx ac jb mb6">
+        <div class="fx ac jb mb6 fw g3">
           <div>
-            <h1 style="font-size:1.5rem;font-weight:700;letter-spacing:-.02em;margin-bottom:4px">Admin Console</h1>
-            <p class="tm ts">Platform monitoring, control &amp; analytics</p>
+            <h1 style="font-size:32px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px">Admin Console</h1>
+            <p class="tm ts" style="font-size:16px;">Platform monitoring, control &amp; analytics</p>
           </div>
           <div class="fx g2">
             <button class="b bg bsm" onclick="aRef()">Refresh</button>

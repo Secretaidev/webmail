@@ -1,17 +1,17 @@
 /**
- * MailPoof — mailpoof.com provider
- * Fast disposable email service
- * Domains: mailpoof.com
+ * InboxBear - InboxBear
  */
-class MailPoofProvider {
+const BASE_URL = 'https://api.guerrillamail.com/ajax.php';
+
+class InboxBearProvider {
   constructor() {
-    this.name = 'mailpoof';
-    this.displayName = 'MailPoof';
-    this.baseUrl = 'https://api.guerrillamail.com/ajax.php'; // fallback
+    this.name = 'inboxbear';
+    this.displayName = 'InboxBear';
+    this.baseUrl = BASE_URL;
     this.cachedDomains = [
-      { id: 'mp_0', domain: 'mailpoof.com', isActive: true, isPrivate: false },
-      { id: 'mp_1', domain: 'pokemail.net', isActive: true, isPrivate: false },
-      { id: 'mp_2', domain: 'spam4.me', isActive: true, isPrivate: false },
+      { id: 'ib_0', domain: 'inboxbear.com', isActive: true, isPrivate: false },
+      { id: 'ib_1', domain: 'inboxkitten.com', isActive: true, isPrivate: false },
+      { id: 'ib_2', domain: 'inboxdesire.com', isActive: true, isPrivate: false },
     ];
   }
 
@@ -21,14 +21,15 @@ class MailPoofProvider {
     try {
       const parts = address ? address.split('@') : [];
       const login = parts[0] || this._randomLogin();
-      const domain = parts[1] || 'mailpoof.com';
+      const domain = parts[1] || this.cachedDomains[0].domain;
       const r = await fetch(`${this.baseUrl}?f=set_email_user&email_user=${encodeURIComponent(login)}&lang=en&site=${domain}`);
       const data = await r.json();
       return { id: data.email_addr || `${login}@${domain}`, address: data.email_addr || `${login}@${domain}`, token: data.sid_token, createdAt: new Date().toISOString() };
     } catch(e) {
       const parts = address ? address.split('@') : [];
       const login = parts[0] || this._randomLogin();
-      return { id: `${login}@mailpoof.com`, address: `${login}@mailpoof.com`, createdAt: new Date().toISOString() };
+      const domain = parts[1] || this.cachedDomains[0].domain;
+      return { id: `${login}@${domain}`, address: `${login}@${domain}`, createdAt: new Date().toISOString() };
     }
   }
 
@@ -41,7 +42,14 @@ class MailPoofProvider {
       const d = await r.json();
       const r2 = await fetch(`${this.baseUrl}?f=get_email_list&offset=0&sid_token=${d.sid_token}`);
       const d2 = await r2.json();
-      return (d2.list || []).map(m => ({ id: String(m.mail_id), from: { address: m.mail_from, name: (m.mail_from || '').split('@')[0] }, subject: m.mail_subject || '(no subject)', intro: m.mail_excerpt || '', isRead: m.mail_read === '1', receivedAt: m.mail_timestamp ? new Date(parseInt(m.mail_timestamp) * 1000).toISOString() : new Date().toISOString() }));
+      return (d2.list || []).map(m => ({
+        id: String(m.mail_id),
+        from: { address: m.mail_from, name: (m.mail_from || '').split('@')[0] },
+        subject: m.mail_subject || '(no subject)',
+        intro: m.mail_excerpt || '',
+        isRead: m.mail_read === '1',
+        receivedAt: m.mail_timestamp ? new Date(parseInt(m.mail_timestamp) * 1000).toISOString() : new Date().toISOString()
+      }));
     } catch(e) { return []; }
   }
 
@@ -59,8 +67,20 @@ class MailPoofProvider {
   async deleteMessage() { return true; }
   async markAsRead() { return true; }
   async deleteAccount() { return true; }
-  async healthCheck() { const s = Date.now(); try { const r = await fetch(this.baseUrl + '?f=get_email_address', { signal: AbortSignal.timeout(5000) }); return { healthy: r.ok, latency: Date.now() - s, status: r.ok ? 'healthy' : 'degraded' }; } catch(e) { return { healthy: false, latency: Date.now() - s, status: 'error', error: e.message }; } }
-  _randomLogin() { const c = 'abcdefghijklmnopqrstuvwxyz0123456789'; let s = ''; for (let i = 0; i < 10; i++) s += c[Math.floor(Math.random() * c.length)]; return s; }
+
+  async healthCheck() {
+    const s = Date.now();
+    try {
+      const r = await fetch(`${this.baseUrl}?f=get_email_address`, { signal: AbortSignal.timeout(5000) });
+      return { healthy: r.ok, latency: Date.now() - s, status: r.ok ? 'healthy' : 'degraded' };
+    } catch(e) { return { healthy: false, latency: Date.now() - s, status: 'error', error: e.message }; }
+  }
+
+  _randomLogin() {
+    const c = 'abcdefghijklmnopqrstuvwxyz0123456789'; let s = '';
+    for (let i = 0; i < 10; i++) s += c[Math.floor(Math.random() * c.length)];
+    return s;
+  }
 }
 
-module.exports = MailPoofProvider;
+module.exports = InboxBearProvider;
