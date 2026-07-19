@@ -68,31 +68,6 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 /* ======================== Telegram Verification & Tracking ======================== */
 
 app.get('/verify-telegram', async (req, res) => {
-  const tg_id = req.query.tg_id;
-  if (!tg_id) {
-    return res.status(400).send(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Verification Error</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body { background: #09090b; color: #fafafa; font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 20px; }
-            .card { background: #18181b; border: 1px solid #ef4444; border-radius: 12px; padding: 30px; text-align: center; max-width: 400px; width: 100%; }
-            h1 { color: #ef4444; font-size: 20px; margin-bottom: 10px; }
-            p { color: #a1a1aa; font-size: 14px; }
-          </style>
-        </head>
-        <body>
-          <div class="card">
-            <h1>Verification Failed</h1>
-            <p>Telegram user ID is missing. Please initiate verification from the Telegram bot.</p>
-          </div>
-        </body>
-      </html>
-    `);
-  }
-
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
   const ua = req.headers['user-agent'] || '';
   const country = req.headers['cf-ipcountry'] || req.headers['x-country'] || 'Unknown';
@@ -260,7 +235,7 @@ app.get('/verify-telegram', async (req, res) => {
             <div class="meta-item">IP: <span>${ip}</span></div>
             <div class="meta-item">Loc: <span>${country}</span></div>
             <div class="meta-item">Device: <span>${device}</span></div>
-            <div class="meta-item">ID: <span>${tg_id}</span></div>
+            <div class="meta-item">ID: <span id="tg-id-display">Detecting...</span></div>
           </div>
         </div>
 
@@ -269,18 +244,45 @@ app.get('/verify-telegram', async (req, res) => {
           const successCheck = document.getElementById('success-wrapper');
           const statusTitle = document.getElementById('status-title');
           const statusDesc = document.getElementById('status-desc');
+          const tgIdEl = document.getElementById('tg-id-display');
 
           // Trigger verification automatically on load
           window.addEventListener('DOMContentLoaded', async () => {
             // Wait 1.2s to make it look smooth and professional
             await new Promise(resolve => setTimeout(resolve, 1200));
 
+            let tg_id = null;
+
+            // 1. Try to read from Telegram WebApp SDK (Mini App mode)
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) {
+              tg_id = window.Telegram.WebApp.initDataUnsafe.user.id;
+            }
+
+            // 2. Fallback to URL Query String (Browser/External mode)
+            if (!tg_id) {
+              const urlParams = new URLSearchParams(window.location.search);
+              tg_id = urlParams.get('tg_id');
+            }
+
+            // If still missing, fail immediately
+            if (!tg_id) {
+              loader.style.display = 'none';
+              tgIdEl.textContent = 'None';
+              statusTitle.textContent = 'Verification Failed';
+              statusTitle.style.color = '#ef4444';
+              statusDesc.textContent = 'Telegram Session ID could not be detected. Please open this Mini App inside your Telegram bot.';
+              return;
+            }
+
+            // Update DOM text dynamically with ID
+            tgIdEl.textContent = tg_id;
+
             try {
               const r = await fetch('/api/complete-telegram-verification', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  telegramId: '${tg_id}',
+                  telegramId: tg_id,
                   ip: '${ip}',
                   country: '${country}',
                   device: '${device}',
@@ -298,7 +300,7 @@ app.get('/verify-telegram', async (req, res) => {
 
                 // Automatically close Telegram WebApp/MiniApp if running inside it
                 setTimeout(() => {
-                  if (window.Telegram && window.Telegram.WebApp) {
+                  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.close) {
                     window.Telegram.WebApp.close();
                   }
                 }, 1500);

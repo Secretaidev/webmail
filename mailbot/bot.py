@@ -2,7 +2,7 @@ import logging
 import asyncio
 import httpx
 from html import escape as html_escape
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, WebAppInfo
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -60,6 +60,12 @@ def btn(text: str, data: str, style: str = None) -> InlineKeyboardButton:
 
 def url_btn(text: str, url: str, style: str = None) -> InlineKeyboardButton:
     button = InlineKeyboardButton(text, url=url)
+    if style:
+        _button_styles[id(button)] = style
+    return button
+
+def webapp_btn(text: str, url: str, style: str = None) -> InlineKeyboardButton:
+    button = InlineKeyboardButton(text, web_app=WebAppInfo(url=url))
     if style:
         _button_styles[id(button)] = style
     return button
@@ -273,7 +279,7 @@ async def show_force_join_message(update: Update, context: ContextTypes.DEFAULT_
     
     keyboard = [
         [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
-        [url_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+        [webapp_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
         [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
     ]
     
@@ -654,7 +660,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 ),
                 reply_markup=InlineKeyboardMarkup([
                     [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
-                    [url_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+                    [webapp_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
                     [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
                 ]),
                 parse_mode="HTML"
@@ -686,7 +692,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ),
                     reply_markup=InlineKeyboardMarkup([
                         [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
-                        [url_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+                        [webapp_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
                         [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
                     ]),
                     parse_mode="HTML"
