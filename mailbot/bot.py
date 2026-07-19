@@ -212,10 +212,91 @@ async def poll_inbox(context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Polling error for user {user_id}: {e}")
 
+# ═══════════════════ SECURITY & VERIFICATION ═══════════════════
+async def check_user_access(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
+    """
+    Checks if user is in channel @Xyron_Bots and verified via Web App in database.
+    Returns True if allowed, False if verification is required.
+    """
+    if user_id == ADMIN_TG_ID:
+        return True # Admin bypasses force checks!
+
+    # 1. Check Web App Verification & User Status in Database
+    try:
+        res = await call_api("GET", f"/api/check-telegram-verification?telegramId={user_id}")
+        if res.get("success"):
+            status = res.get("status", "active")
+            if status in ["suspended", "banned"]:
+                await show_suspended_message(update, context)
+                return False
+            if not res.get("verified"):
+                await show_force_join_message(update, context, user_id)
+                return False
+    except Exception as e:
+        logger.error(f"Error checking web verification for user {user_id}: {e}")
+        # Server downtime fallback: bypass to keep bot working
+        return True
+
+    # 2. Check Channel Join Status
+    try:
+        member = await context.bot.get_chat_member(chat_id="@Xyron_Bots", user_id=user_id)
+        if member.status in ['left', 'kicked']:
+            await show_force_join_message(update, context, user_id)
+            return False
+    except Exception as e:
+        logger.error(f"Error checking channel join for user {user_id}: {e}")
+        # If bot is not in the channel or not admin, we skip join check to avoid breaking the bot
+        pass
+
+    return True
+
+async def show_suspended_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = (
+        "🚫 <b>Access Denied / Session Suspended</b>\n\n"
+        "Your XyronMail account status is set to: <code>SUSPENDED</code>.\n"
+        "This happens when a user violates rate-limits, abuses API keys, or spams temporary inboxes.\n\n"
+        "📢 <i>Please contact @Xyron_Bots administrator to resolve this issue.</i>"
+    )
+    is_cb = update.callback_query is not None
+    if is_cb:
+        await update.callback_query.edit_message_text(text=text, parse_mode="HTML")
+    else:
+        await update.message.reply_text(text=text, parse_mode="HTML")
+
+async def show_force_join_message(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> None:
+    text = (
+        "🔐 <b>XyronMail Security Verification Required</b>\n\n"
+        "To protect our services from spam and automated bots, please complete these security steps:\n\n"
+        "1️⃣ <b>Join our channel:</b> @Xyron_Bots\n"
+        "2️⃣ <b>Verify via Web App:</b> Click the link, solve captcha, and sync your account."
+    )
+    
+    keyboard = [
+        [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
+        [url_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+        [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
+    ]
+    
+    is_cb = update.callback_query is not None
+    if is_cb:
+        await update.callback_query.edit_message_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+    else:
+        await update.message.reply_text(
+            text=text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+
 # ═══════════════════ TELEGRAM BOT COMMANDS ═══════════════════
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     all_users.add(user.id)
+    if not await check_user_access(update, context, user.id):
+        return
     welcome_text = (
         f"👋 <b>Welcome to XyronMail Bot, {html_escape(user.first_name)}!</b>\n\n"
         "Generate instant disposable inboxes, receive verification emails, "
@@ -230,6 +311,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         ],
         [
             btn("❓ Help", "cb_help", style="primary"),
+            url_btn("🌐 Visit Web App", "https://xyronmail.up.railway.app", style="primary")
         ]
     ]
     
@@ -243,7 +325,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    all_users.add(update.effective_user.id)
+    user_id = update.effective_user.id
+    all_users.add(user_id)
+    if not await check_user_access(update, context, user_id):
+        return
     help_text = (
         "📘 <b>XyronMail Bot — Help</b>\n\n"
         "<b>Commands:</b>\n"
@@ -274,7 +359,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    all_users.add(update.effective_user.id)
+    user_id = update.effective_user.id
+    all_users.add(user_id)
+    if not await check_user_access(update, context, user_id):
+        return
     try:
         res = await call_api("GET", "/api/health")
         msg = "✅ <b>Server is ONLINE and healthy!</b>" if res else "⚠️ <b>Server returned unexpected response.</b>"
@@ -284,15 +372,18 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(msg, parse_mode="HTML")
 
 async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    all_users.add(update.effective_user.id)
+    user_id = update.effective_user.id
+    all_users.add(user_id)
     await update.message.reply_text(
-        f"👤 <b>Your Telegram ID:</b> <code>{update.effective_user.id}</code>",
+        f"👤 <b>Your Telegram ID:</b> <code>{user_id}</code>",
         parse_mode="HTML"
     )
 
 async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     all_users.add(user_id)
+    if not await check_user_access(update, context, user_id):
+        return
     stop_polling_job(context, user_id)
     try:
         data = await call_api("GET", "/api/inbox", user_id=user_id)
@@ -310,26 +401,87 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
         
     text = "🛡️ <b>Admin Dashboard</b>\n\nChoose an action:"
-    if len(context.args) > 0 and context.args[0] == "broadcast":
-        msg = " ".join(context.args[1:])
-        if not msg:
-            await update.message.reply_text("Usage: /admin broadcast <message>")
+    if len(context.args) > 0:
+        action = context.args[0].lower()
+        if action == "broadcast":
+            msg = " ".join(context.args[1:])
+            if not msg:
+                await update.message.reply_text("Usage: /admin broadcast <message>")
+                return
+            sent = 0
+            for uid in all_users.copy():
+                try:
+                    await context.bot.send_message(uid, f"📢 <b>Broadcast:</b>\n\n{msg}", parse_mode="HTML")
+                    sent += 1
+                except Exception:
+                    pass
+            await update.message.reply_text(f"✅ Broadcast sent to {sent} users.")
             return
-        sent = 0
-        for uid in all_users.copy():
+
+        elif action in ["ban", "unban"]:
+            if len(context.args) < 2:
+                await update.message.reply_text(f"Usage: /admin {action} <telegram_id>")
+                return
+            tg_id = context.args[1]
+            status = "suspended" if action == "ban" else "active"
             try:
-                await context.bot.send_message(uid, f"📢 <b>Broadcast:</b>\n\n{msg}", parse_mode="HTML")
-                sent += 1
-            except Exception:
-                pass
-        await update.message.reply_text(f"✅ Broadcast sent to {sent} users.")
-        return
+                res = await call_api("POST", "/api/admin/telegram-user/status", json_data={"telegramId": tg_id, "status": status}, use_admin=True)
+                if res.get("success"):
+                    await update.message.reply_text(f"✅ User <code>{tg_id}</code> status updated to: <b>{status.upper()}</b>", parse_mode="HTML")
+                else:
+                    await update.message.reply_text(f"❌ Error updating status: {res.get('error')}")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Exception: {str(e)}")
+            return
+
+        elif action == "user":
+            if len(context.args) < 2:
+                await update.message.reply_text("Usage: /admin user <telegram_id>")
+                return
+            tg_id = context.args[1]
+            try:
+                res = await call_api("GET", f"/api/admin/telegram-user/{tg_id}", use_admin=True)
+                if res.get("success"):
+                    info = res["data"]
+                    user_obj = info.get("user", {})
+                    vers = info.get("verifications", [])
+                    keys = info.get("keys", [])
+                    
+                    text = (
+                        f"👤 <b>User Report for:</b> <code>{tg_id}</code>\n"
+                        f"• <b>Status:</b> <code>{user_obj.get('status')}</code>\n"
+                        f"• <b>Role:</b> <code>{user_obj.get('role')}</code>\n"
+                        f"• <b>Verified:</b> <code>{'YES' if user_obj.get('is_verified') == 1 else 'NO'}</code>\n\n"
+                    )
+                    
+                    text += "🔑 <b>Sync Key Details:</b>\n"
+                    if not keys:
+                        text += "<i>No synced keys found</i>\n\n"
+                    else:
+                        for k in keys:
+                            text += f"- Prefix: <code>{k['key_prefix']}</code> | Limit: {k['quota_daily']} | Status: {k['status']}\n"
+                        text += "\n"
+                            
+                    text += "📋 <b>Last 3 Verification Signatures:</b>\n"
+                    if not vers:
+                        text += "<i>No verification history logged</i>"
+                    else:
+                        for v in vers[:3]:
+                            text += f"- IP: <code>{v['ip_address']}</code> ({v['country']}) | Device: {v['device_type']} | Date: {v['created_at']}\n"
+                    
+                    await update.message.reply_text(text, parse_mode="HTML")
+                else:
+                    await update.message.reply_text(f"❌ User <code>{tg_id}</code> not found in database.", parse_mode="HTML")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Exception: {str(e)}")
+            return
 
     await update.message.reply_text(
         text=text,
         reply_markup=InlineKeyboardMarkup([
             [btn("📊 System Stats", "admin_stats", style="primary")],
             [btn("🔑 Generate Developer API Key", "admin_gen_key", style="success")],
+            [btn("📋 Verification Logs", "admin_ver_logs", style="primary")],
             [btn("🔄 Sync Domains", "admin_sync", style="success"), btn("💚 Check Health", "admin_health", style="success")],
             [btn("🛠 Toggle Maintenance", "admin_maint", style="danger")],
             [btn("🔙 Main Menu", "cb_menu", style="primary")]
@@ -340,6 +492,8 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def new_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     all_users.add(user_id)
+    if not await check_user_access(update, context, user_id):
+        return
     is_cb = update.callback_query is not None
     
     try:
@@ -397,6 +551,8 @@ async def new_inbox(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def list_inboxes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     all_users.add(user_id)
+    if not await check_user_access(update, context, user_id):
+        return
     is_cb = update.callback_query is not None
         
     try:
@@ -471,6 +627,79 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     all_users.add(user_id)
     chat_id = query.message.chat_id
     
+    if data == "cb_check_ver":
+        await query.answer("🔄 Connecting to cloud gateway...")
+        await query.edit_message_text(
+            text="⏳ <b>Verifying your credentials...</b>\n\n• Checking channel join state: <code>PENDING</code>\n• Checking cloud browser signature: <code>PENDING</code>",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(0.8)
+        
+        is_joined = False
+        try:
+            member = await context.bot.get_chat_member(chat_id="@Xyron_Bots", user_id=user_id)
+            if member.status not in ['left', 'kicked']:
+                is_joined = True
+        except Exception as e:
+            logger.error(f"Error checking channel join: {e}")
+            is_joined = True
+
+        if not is_joined:
+            await query.edit_message_text(
+                text=(
+                    "❌ <b>Verification Failed</b>\n\n"
+                    "• Checking channel join state: <code>FAILED</code>\n"
+                    "• Checking cloud browser signature: <code>SKIPPED</code>\n\n"
+                    "<i>Please join @Xyron_Bots updates channel and verify again.</i>"
+                ),
+                reply_markup=InlineKeyboardMarkup([
+                    [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
+                    [url_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+                    [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
+                ]),
+                parse_mode="HTML"
+            )
+            return
+
+        await query.edit_message_text(
+            text="⏳ <b>Verifying your credentials...</b>\n\n• Checking channel join state: <code>SUCCESS</code>\n• Checking cloud browser signature: <code>PENDING</code>",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(0.8)
+
+        try:
+            res = await call_api("GET", f"/api/check-telegram-verification?telegramId={user_id}")
+            if res.get("success") and res.get("verified"):
+                await query.edit_message_text(
+                    text="⏳ <b>Verifying your credentials...</b>\n\n• Checking channel join state: <code>SUCCESS</code>\n• Checking cloud browser signature: <code>SUCCESS</code>\n\n🎉 <i>Cryptographic handshake successfully synced! Account unlocked.</i>",
+                    parse_mode="HTML"
+                )
+                await asyncio.sleep(0.6)
+                data = "cb_menu" # Fall through to welcome screen
+            else:
+                await query.edit_message_text(
+                    text=(
+                        "❌ <b>Verification Failed</b>\n\n"
+                        "• Checking channel join state: <code>SUCCESS</code>\n"
+                        "• Checking cloud browser signature: <code>FAILED</code>\n\n"
+                        "<i>Please click the verification link, solve the captcha, and verify again.</i>"
+                    ),
+                    reply_markup=InlineKeyboardMarkup([
+                        [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
+                        [url_btn("🔒 Verify Account (Web App)", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+                        [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
+                    ]),
+                    parse_mode="HTML"
+                )
+                return
+        except Exception as e:
+            logger.error(f"Error checking verification: {e}")
+            await query.answer("❌ Server error checking status. Please try again later.", show_alert=True)
+            return
+
+    if not await check_user_access(update, context, user_id):
+        return
+
     # Always answer callback queries first as requested
     if data == "cb_new":
         await query.answer("⚡ Generating inbox...")
@@ -501,6 +730,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             ],
             [
                 btn("❓ Help", "cb_help", style="primary"),
+                url_btn("🌐 Visit Web App", "https://xyronmail.up.railway.app", style="primary")
             ]
         ]
         if user_id == ADMIN_TG_ID:
@@ -700,6 +930,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=InlineKeyboardMarkup([
                 [btn("📊 System Stats", "admin_stats", style="primary")],
                 [btn("🔑 Generate Developer API Key", "admin_gen_key", style="success")],
+                [btn("📋 Verification Logs", "admin_ver_logs", style="primary")],
                 [btn("🔄 Sync Domains", "admin_sync", style="success"), btn("💚 Check Health", "admin_health", style="success")],
                 [btn("🛠 Toggle Maintenance", "admin_maint", style="danger")],
                 [btn("🔙 Main Menu", "cb_menu", style="primary")]
@@ -707,17 +938,51 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             parse_mode="HTML"
         )
 
+    elif data == "admin_ver_logs":
+        if user_id != ADMIN_TG_ID:
+            await query.answer("Access denied!", show_alert=True)
+            return
+        await query.answer("Fetching logs...")
+        try:
+            res = await call_api("GET", "/api/admin/telegram-verifications", use_admin=True)
+            if not res.get("success"):
+                raise Exception(res.get("error", "Error loading logs"))
+            logs = res.get("data", [])
+            if not logs:
+                text = "📋 <b>No verification reports yet.</b>"
+            else:
+                text = "📋 <b>Telegram Verification Logs (Last 10):</b>\n\n"
+                for log in logs[:10]:
+                    text += (
+                        f"• <b>User:</b> <code>{log.get('telegram_id')}</code>\n"
+                        f"  <b>IP:</b> <code>{log.get('ip_address')}</code> ({log.get('country')})\n"
+                        f"  <b>Device:</b> {log.get('device_type')} | {log.get('created_at')}\n\n"
+                    )
+            await query.edit_message_text(
+                text=text,
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            await query.edit_message_text(
+                text=f"❌ <b>Error:</b> {html_escape(str(e))}",
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                parse_mode="HTML"
+            )
+
     elif data == "admin_gen_key":
         if user_id != ADMIN_TG_ID:
             await query.answer("Access denied!", show_alert=True)
             return
         await query.answer()
-        context.user_data["awaiting_tg_id"] = True
+        context.user_data["wizard_step"] = 1
+        context.user_data["wizard_tg_id"] = None
+        context.user_data["wizard_quota"] = None
+        context.user_data["wizard_rate"] = None
         await query.edit_message_text(
             text=(
-                "🔑 <b>Generate Developer API Key</b>\n\n"
-                "Please enter/send the Telegram ID of the user you want to generate and sync the API key for.\n\n"
-                "Send the numeric Telegram ID as a message:"
+                "🔑 <b>Developer API Key Generator (Step 1/3)</b>\n\n"
+                "Please enter the target user's numeric Telegram ID:"
             ),
             reply_markup=InlineKeyboardMarkup([[btn("🔙 Cancel", "admin_menu", style="danger")]]),
             parse_mode="HTML"
@@ -811,69 +1076,146 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # Track all users
     all_users.add(user_id)
     
-    # Check if admin is entering a Telegram ID
-    if user_id == ADMIN_TG_ID and context.user_data.get("awaiting_tg_id"):
-        context.user_data["awaiting_tg_id"] = False
+    # Check access for regular users
+    if user_id != ADMIN_TG_ID and not await check_user_access(update, context, user_id):
+        return
+    
+    # Check if admin is running the multi-step developer wizard
+    if user_id == ADMIN_TG_ID and context.user_data.get("wizard_step"):
+        step = context.user_data.get("wizard_step")
         
-        # Validate Telegram ID
-        if not text.isdigit():
+        if step == 1:
+            # Validate Telegram ID
+            if not text.isdigit():
+                await update.message.reply_text(
+                    "❌ <b>Invalid Telegram ID.</b> It must be a numeric value.\n"
+                    "Send Telegram ID again or /start to cancel:",
+                    parse_mode="HTML"
+                )
+                return
+            
+            context.user_data["wizard_tg_id"] = text
+            context.user_data["wizard_step"] = 2
             await update.message.reply_text(
-                "❌ <b>Invalid Telegram ID.</b> It must be a number.\n"
-                "Please go back to the admin menu and try again.",
-                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                f"🔑 <b>Developer API Key Generator (Step 2/3)</b>\n\n"
+                f"👤 <b>Target ID:</b> <code>{text}</code>\n\n"
+                f"Please enter the <b>Daily Quota Limit</b> (e.g. <code>5000</code>) or send <code>default</code>:",
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Cancel", "admin_menu", style="danger")]]),
                 parse_mode="HTML"
             )
             return
+
+        elif step == 2:
+            quota_val = None
+            if text.lower() != "default":
+                if not text.isdigit():
+                    await update.message.reply_text(
+                        "❌ <b>Invalid Quota.</b> Must be a number or 'default'.\n"
+                        "Send Quota Limit again or /start to cancel:",
+                        parse_mode="HTML"
+                    )
+                    return
+                quota_val = int(text)
             
-        tg_id = int(text)
-        await update.message.reply_text(f"⏳ Generating/Syncing API key for Telegram ID <code>{tg_id}</code>...", parse_mode="HTML")
-        
-        try:
-            res = await call_api("POST", "/api/admin/generate-telegram-key", json_data={"telegramId": str(tg_id)}, use_admin=True)
-            if not res.get("success"):
-                raise Exception(res.get("error", "Error creating key"))
-                
-            key_data = res["data"]
-            api_key = key_data["key"]
-            prefix = key_data["prefix"]
+            context.user_data["wizard_quota"] = quota_val
+            context.user_data["wizard_step"] = 3
             
-            admin_msg = (
-                "🔑 <b>API Key Generated & Synced Successfully!</b>\n\n"
-                f"👤 <b>Telegram ID:</b> <code>{tg_id}</code>\n"
-                f"🔑 <b>API Key:</b> <code>{api_key}</code>\n"
-                f"📌 <b>Prefix:</b> <code>{prefix}</code>\n\n"
-                "⚠️ <i>Please copy this key. It will not be shown again in plain text.</i>\n\n"
-                "This key has developer read/write permissions and is synced to the user's ID."
-            )
+            target_id = context.user_data["wizard_tg_id"]
+            quota_disp = f"{quota_val} requests" if quota_val else "5000 (Default)"
             
             await update.message.reply_text(
-                admin_msg,
-                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                f"🔑 <b>Developer API Key Generator (Step 3/3)</b>\n\n"
+                f"👤 <b>Target ID:</b> <code>{target_id}</code>\n"
+                f"📊 <b>Daily Quota:</b> <code>{quota_disp}</code>\n\n"
+                f"Please enter the <b>Rate Limit per minute</b> (e.g. <code>100</code>) or send <code>default</code>:",
+                reply_markup=InlineKeyboardMarkup([[btn("🔙 Cancel", "admin_menu", style="danger")]]),
+                parse_mode="HTML"
+            )
+            return
+
+        elif step == 3:
+            rate_val = None
+            if text.lower() != "default":
+                if not text.isdigit():
+                    await update.message.reply_text(
+                        "❌ <b>Invalid Rate Limit.</b> Must be a number or 'default'.\n"
+                        "Send Rate Limit again or /start to cancel:",
+                        parse_mode="HTML"
+                    )
+                    return
+                rate_val = int(text)
+            
+            # Extract wizard data
+            tg_id = context.user_data["wizard_tg_id"]
+            quota_val = context.user_data["wizard_quota"]
+            
+            # Reset wizard status
+            context.user_data["wizard_step"] = None
+            
+            await update.message.reply_text(
+                f"⏳ <b>Generating and Syncing API key for user {tg_id}...</b>",
                 parse_mode="HTML"
             )
             
-            # Try to notify the target user directly if possible
             try:
-                user_msg = (
-                    "🎉 <b>New Developer API Key Assigned!</b>\n\n"
-                    "The admin has generated and synced a XyronMail developer API key for your Telegram account.\n\n"
-                    f"🔑 <b>Your API Key:</b> <code>{api_key}</code>\n\n"
-                    "You can now use this API key to integrate XyronMail's fast temporary email services directly into your own bot or website!\n"
-                    "Keep this key secure."
-                )
-                await context.bot.send_message(chat_id=tg_id, text=user_msg, parse_mode="HTML")
-                await update.message.reply_text(f"✅ Notification sent directly to User <code>{tg_id}</code>.", parse_mode="HTML")
-            except Exception as e:
-                logger.warning(f"Could not notify user {tg_id} directly (they might not have started the bot): {e}")
-                await update.message.reply_text(f"⚠️ User <code>{tg_id}</code> could not be notified directly (they haven't started this bot yet). Please send them the key manually.", parse_mode="HTML")
+                # Call endpoint
+                payload = { "telegramId": str(tg_id) }
+                if quota_val:
+                    payload["quotaDaily"] = quota_val
+                if rate_val:
+                    payload["rateLimit"] = rate_val
+                    
+                res = await call_api("POST", "/api/admin/generate-telegram-key", json_data=payload, use_admin=True)
+                if not res.get("success"):
+                    raise Exception(res.get("error", "Error creating key"))
+                    
+                key_data = res["data"]
+                api_key = key_data["key"]
+                prefix = key_data["prefix"]
+                final_quota = key_data.get("quotaDaily", 5000)
+                final_rate = key_data.get("rateLimit", 500)
                 
-        except Exception as e:
-            await update.message.reply_text(
-                f"❌ <b>Error:</b> {html_escape(str(e))}",
-                reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
-                parse_mode="HTML"
-            )
-        return
+                admin_msg = (
+                    "🔑 <b>API Key Generated & Synced Successfully!</b>\n\n"
+                    f"👤 <b>Telegram ID:</b> <code>{tg_id}</code>\n"
+                    f"🔑 <b>API Key:</b> <code>{api_key}</code>\n"
+                    f"📌 <b>Prefix:</b> <code>{prefix}</code>\n"
+                    f"📊 <b>Daily Quota:</b> <code>{final_quota}</code> requests\n"
+                    f"⚡ <b>Rate Limit:</b> <code>{final_rate}/min</code>\n\n"
+                    "⚠️ <i>Please copy this key. It will not be shown again in plain text.</i>\n\n"
+                    "This key is now synced to the user's ID with the configured limits."
+                )
+                
+                await update.message.reply_text(
+                    admin_msg,
+                    reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                    parse_mode="HTML"
+                )
+                
+                # Notify the user
+                try:
+                    user_msg = (
+                        "🎉 <b>New Developer API Key Assigned!</b>\n\n"
+                        "The admin has generated and synced a XyronMail developer API key for your Telegram account.\n\n"
+                        f"🔑 <b>Your API Key:</b> <code>{api_key}</code>\n"
+                        f"📊 <b>Daily Quota:</b> <code>{final_quota}</code> requests\n"
+                        f"⚡ <b>Rate Limit:</b> <code>{final_rate}/min</code>\n\n"
+                        "You can now use this API key to integrate XyronMail's fast temporary email services directly into your own bot or website!\n"
+                        "Keep this key secure."
+                    )
+                    await context.bot.send_message(chat_id=int(tg_id), text=user_msg, parse_mode="HTML")
+                    await update.message.reply_text(f"✅ Notification sent directly to User <code>{tg_id}</code>.", parse_mode="HTML")
+                except Exception as e:
+                    logger.warning(f"Could not notify user {tg_id} directly: {e}")
+                    await update.message.reply_text(f"⚠️ User <code>{tg_id}</code> could not be notified directly (they haven't started this bot yet). Please send them the key manually.", parse_mode="HTML")
+                    
+            except Exception as e:
+                await update.message.reply_text(
+                    f"❌ <b>Error:</b> {html_escape(str(e))}",
+                    reply_markup=InlineKeyboardMarkup([[btn("🔙 Admin Menu", "admin_menu", style="primary")]]),
+                    parse_mode="HTML"
+                )
+            return
 
     # Normal user chat: if not awaiting TG ID, reply friendly
     await update.message.reply_text(

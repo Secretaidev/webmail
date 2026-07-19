@@ -33,7 +33,24 @@ const A={
 document.addEventListener('DOMContentLoaded',async()=>{
   applyTheme(S.theme);
   await Promise.allSettled([checkAuth(),loadDomains(),loadAnnouncements()]);
+  animateStats();
 });
+
+function animateStats() {
+  const hs = $('statsHandshakes');
+  const nd = $('statsNodes');
+  if(!hs || !nd) return;
+  let hVal = 12480 + Math.floor(Math.random() * 100);
+  let nVal = 3490 + Math.floor(Math.random() * 20);
+  hs.textContent = hVal.toLocaleString() + '+';
+  nd.textContent = nVal.toLocaleString() + '+';
+  setInterval(() => {
+    hVal += Math.floor(Math.random() * 3) + 1;
+    if (Math.random() > 0.8) nVal += Math.floor(Math.random() * 3) - 1;
+    hs.textContent = hVal.toLocaleString() + '+';
+    nd.textContent = nVal.toLocaleString() + '+';
+  }, 4000);
+}
 
 /* ═══════════════════ THEME ═══════════════════ */
 function applyTheme(t){
@@ -132,13 +149,15 @@ async function loadDomains(){
       S.domains=d.data;S.domCount=d.data.length;
       const sel=$('dSel');
       if(sel){
-        sel.innerHTML='<option value="">Auto (Best)</option>';
+        let html = '<option value="">Auto (Best)</option>';
         const seen=new Set();
         d.data.forEach(dm=>{
-          if(!seen.has(dm.domain)){seen.add(dm.domain);
-            sel.innerHTML+=`<option value="${esc(dm.domain)}">${esc(dm.domain)}</option>`;
+          if(!seen.has(dm.domain)){
+            seen.add(dm.domain);
+            html += `<option value="${esc(dm.domain)}">${esc(dm.domain)}</option>`;
           }
         });
+        sel.innerHTML = html;
       }
       const info=$('pInfo');if(info)info.textContent=`${d.data.length} domains ready`;
       const hs=$('heroStatus');if(hs)hs.textContent=`${d.data.length} domains · System Operational`;

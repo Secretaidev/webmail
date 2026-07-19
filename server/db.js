@@ -2,11 +2,21 @@
  * XyronMail - Database initialization and schema
  * Uses better-sqlite3 for synchronous, fast SQLite operations
  */
-const Database = require('better-sqlite3');
+const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'xyronmail.db');
+
+// Run the download sync script synchronously before instantiating the SQLite database
+try {
+  console.log('[Database] Triggering synchronous cloud sync download...');
+  execSync(`node "${path.join(__dirname, 'sync-download.js')}"`, { stdio: 'inherit' });
+} catch (e) {
+  console.error('[Database] Sync download script failed. Continuing with local copy.', e.message);
+}
+
+const Database = require('better-sqlite3');
 
 // Ensure data directory exists
 const dataDir = path.dirname(DB_PATH);
@@ -23,6 +33,33 @@ db.pragma('synchronous = NORMAL');
 db.pragma('temp_store = MEMORY');
 db.pragma('cache_size = -64000');
 db.pragma('busy_timeout = 5000');
+
+// Background interval to upload SQLite backup to cloud
+const { uploadDatabaseToCloud } = require('./db-sync');
+setInterval(() => {
+  uploadDatabaseToCloud();
+}, 30000); // Back up every 30 seconds
+
+// Hook into graceful shutdowns to upload one final time
+function handleExitSync() {
+  console.log('[Database] Saving final backup to Supabase Cloud before exit...');
+  try {
+    // We run it synchronously using child process to prevent process from terminating before async upload finishes
+    execSync(`node "${path.join(__dirname, 'sync-upload-direct.js')}"`, { stdio: 'inherit' });
+  } catch (e) {
+    console.error('Final sync upload failed:', e.message);
+  }
+}
+
+process.on('SIGINT', () => {
+  handleExitSync();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  handleExitSync();
+  process.exit(0);
+});
 
 /**
  * Initialize all database tables
@@ -272,9 +309,13 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_pre_generated_keys_status ON pre_generated_keys(status);
   `);
 
-  // Migration: add telegram_id columns dynamically if they do not exist
   try {
     db.exec("ALTER TABLE users ADD COLUMN telegram_id TEXT");
+  } catch (e) {
+    // Ignore if column already exists
+  }
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0");
   } catch (e) {
     // Ignore if column already exists
   }
@@ -289,6 +330,22 @@ function initializeDatabase() {
   } catch (e) {
     // Ignore
   }
+
+  // Create telegram_verifications table for IP tracking
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS telegram_verifications (
+      id TEXT PRIMARY KEY,
+      telegram_id TEXT NOT NULL,
+      ip_address TEXT,
+      user_agent TEXT,
+      country TEXT,
+      region TEXT,
+      city TEXT,
+      device_type TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_verifications_tg ON telegram_verifications(telegram_id);
+  `);
 
 
   // Insert default settings

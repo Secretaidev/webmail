@@ -31,6 +31,11 @@ router.get('/stats', (req, res) => {
       apiRequests24h: db.prepare("SELECT COUNT(*) as c FROM api_logs WHERE created_at > datetime('now', '-24 hours')").get().c,
       auditEvents24h: db.prepare("SELECT COUNT(*) as c FROM audit_logs WHERE created_at > datetime('now', '-24 hours')").get().c,
       maintenanceMode: db.prepare("SELECT value FROM settings WHERE key = 'maintenance_mode'").get()?.value === 'true',
+      
+      // Telegram Stats
+      telegramTotalVerifications: db.prepare('SELECT COUNT(*) as c FROM telegram_verifications').get().c,
+      telegramVerifiedUsers: db.prepare('SELECT COUNT(*) as c FROM users WHERE telegram_id IS NOT NULL AND is_verified = 1').get().c,
+      telegramUnverifiedUsers: db.prepare('SELECT COUNT(*) as c FROM users WHERE telegram_id IS NOT NULL AND is_verified = 0').get().c,
     };
 
     // Hourly message chart (last 24h)
@@ -295,8 +300,21 @@ router.get('/system-info', (req, res) => {
 
 router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_key'), (req, res) => {
   try {
-    const { telegramId, name } = req.body;
+    const { telegramId, name, quotaDaily, rateLimit } = req.body;
     if (!telegramId) return res.status(400).json({ error: 'telegramId is required' });
+
+    const isAdmin = String(telegramId) === "8265364068";
+    
+    // Limits
+    let finalQuota = quotaDaily ? parseInt(quotaDaily) : 5000;
+    let finalRate = rateLimit ? parseInt(rateLimit) : 500;
+    let scopes = '["read","write"]';
+
+    if (isAdmin) {
+      finalQuota = 9999999;
+      finalRate = 999999;
+      scopes = '["read","write","admin"]';
+    }
 
     // 1. Check if user already exists
     let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
@@ -305,16 +323,22 @@ router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_k
       const crypto = require('crypto');
       const userId = `usr_tg_${telegramId}`;
       const email = `tg_user_${telegramId}@xyronmail.com`;
-      const display_name = `Telegram User ${telegramId}`;
+      const display_name = isAdmin ? 'Admin Root' : `Telegram User ${telegramId}`;
       const password_hash = bcrypt.hashSync(`tg_pass_${telegramId}_${crypto.randomBytes(8).toString('hex')}`, 10);
+      const role = isAdmin ? 'admin' : 'developer';
       
       db.prepare(`
-        INSERT INTO users (id, email, password_hash, display_name, role, status, email_verified, telegram_id)
-        VALUES (?, ?, ?, ?, 'developer', 'active', 1, ?)
-      `).run(userId, email, password_hash, display_name, telegramId);
+        INSERT INTO users (id, email, password_hash, display_name, role, status, email_verified, telegram_id, is_verified)
+        VALUES (?, ?, ?, ?, ?, 'active', 1, ?, 1)
+      `).run(userId, email, password_hash, display_name, role, telegramId);
 
-      user = { id: userId, email, display_name, role: 'developer', status: 'active', telegram_id: telegramId };
+      user = { id: userId, email, display_name, role, status: 'active', telegram_id: telegramId };
+    } else if (isAdmin && user.role !== 'admin') {
+      db.prepare("UPDATE users SET role = 'admin' WHERE telegram_id = ?").run(telegramId);
     }
+
+    // Revoke existing keys if any (limit 1 key per developer user)
+    db.prepare("UPDATE api_keys SET status = 'revoked' WHERE user_id = ?").run(user.id);
 
     // 2. Claim a pre-generated key or generate a fresh one
     let rawKey = null;
@@ -336,8 +360,8 @@ router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_k
     // 3. Insert into api_keys
     db.prepare(`
       INSERT INTO api_keys (id, user_id, name, key_hash, key_prefix, scopes, rate_limit, quota_daily, telegram_id)
-      VALUES (?, ?, ?, ?, ?, '["read","write"]', 500, 5000, ?)
-    `).run(keyId, user.id, name || `Telegram Key (${telegramId})`, keyHash, keyPrefix, telegramId);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(keyId, user.id, name || `Telegram Key (${telegramId})`, keyHash, keyPrefix, scopes, finalRate, finalQuota, telegramId);
 
     // 4. Update status in pre_generated_keys if we claimed one
     if (preGeneratedRecord) {
@@ -351,11 +375,67 @@ router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_k
         id: keyId,
         key: rawKey,
         prefix: keyPrefix,
-        telegramId
+        telegramId,
+        quotaDaily: finalQuota,
+        rateLimit: finalRate
       }
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to create Telegram API key', message: err.message });
+  }
+});
+
+/* ======================== Telegram User Controls ======================== */
+
+router.get('/telegram-user/:tg_id', (req, res) => {
+  try {
+    const tg_id = req.params.tg_id;
+    const user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(tg_id);
+    if (!user) return res.json({ success: false, error: 'User not found' });
+    
+    const verifications = db.prepare('SELECT * FROM telegram_verifications WHERE telegram_id = ? ORDER BY created_at DESC LIMIT 5').all(tg_id);
+    const keys = db.prepare('SELECT id, key_prefix, rate_limit, quota_daily, status, created_at FROM api_keys WHERE telegram_id = ?').all(tg_id);
+    
+    res.json({
+      success: true,
+      data: {
+        user,
+        verifications,
+        keys
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/telegram-user/status', (req, res) => {
+  try {
+    const { telegramId, status } = req.body;
+    if (!telegramId || !status) return res.status(400).json({ error: 'telegramId and status are required' });
+    
+    const user = db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(telegramId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    db.prepare('UPDATE users SET status = ? WHERE telegram_id = ?').run(status, telegramId);
+    res.json({ success: true, message: `User status updated to ${status}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ======================== Telegram Verification Logs ======================== */
+
+router.get('/telegram-verifications', (req, res) => {
+  try {
+    const logs = db.prepare(`
+      SELECT * FROM telegram_verifications 
+      ORDER BY created_at DESC 
+      LIMIT 200
+    `).all();
+    res.json({ success: true, data: logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
