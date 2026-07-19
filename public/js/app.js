@@ -33,15 +33,13 @@ const A={
 document.addEventListener('DOMContentLoaded',async()=>{
   applyTheme(S.theme);
   await Promise.allSettled([checkAuth(),loadDomains(),loadAnnouncements()]);
-  // Show telegram popup briefly
-  setTimeout(()=>{const c=$('tgC');if(c){c.classList.remove('nn');setTimeout(()=>c.classList.add('nn'),4500)}},3500);
 });
 
 /* ═══════════════════ THEME ═══════════════════ */
 function applyTheme(t){
   document.documentElement.setAttribute('data-theme',t);
   S.theme=t;localStorage.setItem('xm_t',t);
-  const b=$('thB');if(b)b.textContent=t==='dark'?'☀️':'🌙';
+  const b=$('thB');if(b)b.innerHTML=t==='dark'?'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>':'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
 }
 function toggleTheme(){applyTheme(S.theme==='dark'?'light':'dark')}
 
@@ -61,7 +59,7 @@ function updateAuthUI(){
     el.innerHTML=`<div class="fx ac g2">
       <span class="ts t2" style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(S.user.displayName||S.user.email)}</span>
       <span class="bd2 bd2${r==='admin'?'d':r==='developer'?'a':'p'}">${r}</span>
-      <button class="b bg bsm" onclick="logout()">↩ Out</button>
+      <button class="b bg bsm" onclick="logout()">Sign Out</button>
     </div>`;
     
     // Inject Admin button dynamically only if user is admin
@@ -71,7 +69,7 @@ function updateAuthUI(){
         const adminBtn = document.createElement('button');
         adminBtn.dataset.p = 'admin';
         adminBtn.onclick = () => nav('admin');
-        adminBtn.innerHTML = '🛡️ Admin';
+        adminBtn.innerHTML = 'Admin';
         const docsBtn = document.querySelector('[data-p="docs"]');
         if(docsBtn) {
           navContainer.insertBefore(adminBtn, docsBtn);
@@ -87,7 +85,7 @@ function updateAuthUI(){
 function aModal(mode){
   const isLogin=mode==='login';
   $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai">
-    <div class="mh"><h2>${isLogin?'👋 Welcome Back':'🚀 Create Account'}</h2><button class="b bg bi" onclick="closeModal()">✕</button></div>
+    <div class="mh"><h2>${isLogin?'Sign In':'Create Account'}</h2><button class="b bg bi" onclick="closeModal()">✕</button></div>
     <div class="mb">
       ${isLogin?'':'<div class="ig"><label>Display Name</label><input class="ip" id="aN" placeholder="Your name"></div>'}
       <div class="ig"><label>Email</label><input class="ip" id="aE" type="email" placeholder="you@example.com"></div>
@@ -109,7 +107,7 @@ async function doAuth(mode){
   try{
     const body={email:e,password:pw};if(mode==='register'&&nm)body.displayName=nm;
     const d=await A.p(`/auth/${mode==='login'?'login':'register'}`,body);
-    if(d.success){S.user=d.data;if(d.data.token)S.token=d.data.token;closeModal();updateAuthUI();await loadInboxes();toast(`Welcome${mode==='login'?' back':''}, ${d.data.displayName||d.data.email}!`,'s')}
+    if(d.success){S.user=d.data;if(d.data.token)S.token=d.data.token;closeModal();updateAuthUI();await loadInboxes();toast(`Welcome, ${d.data.displayName||d.data.email}!`,'s')}
   }catch(ex){showErr(er,ex.message);if(bt){bt.disabled=false;bt.textContent=mode==='login'?'Sign In':'Sign Up'}}
 }
 function showErr(el,msg){if(el){el.textContent=msg;el.classList.remove('nn')}}
@@ -134,7 +132,7 @@ async function loadDomains(){
       S.domains=d.data;S.domCount=d.data.length;
       const sel=$('dSel');
       if(sel){
-        sel.innerHTML='<option value="">🎲 Auto (Best)</option>';
+        sel.innerHTML='<option value="">Auto (Best)</option>';
         const seen=new Set();
         d.data.forEach(dm=>{
           if(!seen.has(dm.domain)){seen.add(dm.domain);
@@ -156,36 +154,36 @@ async function loadInboxes(){
 function renderInboxList(){
   const c=$('ibL');if(!c)return;
   if(!S.inboxes.length){
-    c.innerHTML='<div class="ey" style="padding:20px"><div style="font-size:2.2rem;opacity:.25;margin-bottom:6px">📭</div><h3 style="font-size:.88rem;font-weight:700;margin-bottom:2px">No Inboxes Yet</h3><p style="font-size:.7rem;color:var(--t3)">Click Generate above to start</p></div>';return;
+    c.innerHTML='<div class="ey" style="padding:20px"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.25;margin-bottom:12px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg><h3 style="font-size:.85rem;font-weight:600;margin-bottom:2px">No Inboxes Yet</h3><p style="font-size:.75rem;color:var(--t3)">Click Generate above to start</p></div>';return;
   }
   c.innerHTML=S.inboxes.map((ib,i)=>`
     <div class="ica ${ib.id===S.aI?'on':''} ai" onclick="selectInbox('${esc(ib.id)}')">
-      <div class="iic">📧</div>
+      <div class="iic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></div>
       <div class="iin">
         <div class="iem">${esc(ib.emailAddress)}</div>
         <div class="ipr">${ago(ib.createdAt)}</div>
       </div>
       ${ib.messageCount>0?`<div class="icn">${ib.messageCount}</div>`:''}
       <div class="iac">
-        <button class="b bg bi" style="padding:3px" onclick="event.stopPropagation();copyText('${esc(ib.emailAddress)}')" title="Copy">📋</button>
-        <button class="b bg bi" style="padding:3px;color:var(--d)" onclick="event.stopPropagation();deleteInbox('${esc(ib.id)}')" title="Delete">🗑</button>
+        <button class="b bg bi" style="padding:3px" onclick="event.stopPropagation();copyText('${esc(ib.emailAddress)}')" title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+        <button class="b bg bi" style="padding:3px;color:var(--d)" onclick="event.stopPropagation();deleteInbox('${esc(ib.id)}')" title="Delete"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg></button>
       </div>
     </div>`).join('');
 }
 async function cInbox(){
   const bt=$('cib');if(!bt)return;
-  bt.disabled=true;bt.innerHTML='<div class="sp" style="width:14px;height:14px;border-top-color:#fff"></div> Creating...';
+  bt.disabled=true;bt.innerHTML='<div class="sp" style="width:14px;height:14px;border-top-color:var(--bg0)"></div> Generating...';
   try{
     const dom=$('dSel')?.value;
     const body=dom?{domain:dom}:{};
     const d=await A.p('/inbox',body);
     if(d.success&&d.data){
-      toast(`✅ ${d.data.emailAddress}`,'s');
+      toast(`Created: ${d.data.emailAddress}`,'s');
       copyText(d.data.emailAddress);
       await loadInboxes();selectInbox(d.data.id);
     }
   }catch(e){toast(e.message||'Failed to create inbox','e')}
-  finally{bt.disabled=false;bt.innerHTML='<span style="font-size:1.05rem">⚡</span> Generate Inbox'}
+  finally{bt.disabled=false;bt.innerHTML='Generate Inbox'}
 }
 async function deleteInbox(id){
   if(!confirm('Delete this inbox and all its messages?'))return;
@@ -206,7 +204,7 @@ async function loadMessages(id){
   try{
     const d=await A.g(`/inbox/${id}/messages`);
     if(d.success){S.msgs=d.data||[];renderMessageArea()}
-  }catch(e){el.innerHTML=`<div class="ey"><p class="tm">⚠️ ${esc(e.message)}</p><button class="b bg bsm mt2" onclick="loadMessages('${id}')">🔄 Retry</button></div>`}
+  }catch(e){el.innerHTML=`<div class="ey"><p class="tm">Error: ${esc(e.message)}</p><button class="b bg bsm mt2" onclick="loadMessages('${id}')">Retry</button></div>`}
 }
 function renderMessageArea(){
   const el=$('eL'),ev=$('eV'),em=$('eI');if(!el||!ev||!em)return;
@@ -216,21 +214,21 @@ function renderMessageArea(){
   if(!S.msgs.length){
     el.innerHTML='';el.classList.add('nn');ev.classList.add('nn');em.classList.remove('nn');
     const ib=S.inboxes.find(i=>i.id===S.aI);
-    em.innerHTML=`<div style="font-size:3.5rem;animation:flt 3s ease-in-out infinite;margin-bottom:12px">📬</div>
-      <h3 style="font-size:1.2rem;font-weight:800;margin-bottom:6px">Waiting for Emails</h3>
-      <p class="tm ts" style="margin-bottom:12px">Send email to this address:</p>
-      <div class="fx ac g2" style="padding:10px 18px;background:var(--bg2);border-radius:var(--r2)">
-        <span class="sa mn2" style="color:var(--a);font-weight:700;font-size:.92rem">${ib?.emailAddress||''}</span>
-        <button class="b bg bi" style="padding:4px" onclick="copyText('${ib?.emailAddress||''}')">📋</button>
+    em.innerHTML=`<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.25;margin-bottom:16px"><path d="M22 12h-4l-3 9L9 3l-3 9H2"></path></svg>
+      <h3 style="font-size:1.15rem;font-weight:600;margin-bottom:8px">Waiting for Emails</h3>
+      <p class="tm ts" style="margin-bottom:16px">Send email to this address:</p>
+      <div class="fx ac g2" style="padding:12px 20px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r2)">
+        <span class="sa mn2" style="color:var(--t1);font-weight:500;font-size:.9rem">${ib?.emailAddress||''}</span>
+        <button class="b bg bi" style="padding:6px" onclick="copyText('${ib?.emailAddress||''}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
       </div>
-      <div class="fx ac g2 mt6" style="opacity:.5"><div class="sp" style="width:12px;height:12px"></div><span class="tx tm">Live checking (Real-time)</span></div>`;
+      <div class="fx ac g2 mt6" style="opacity:.5"><div class="sp" style="width:14px;height:14px"></div><span class="tx tm">Checking in real-time</span></div>`;
     return;
   }
   // Viewing single message
   if(S.aM){el.classList.add('nn');ev.classList.remove('nn');em.classList.add('nn');return}
   // Message list
   em.classList.add('nn');el.classList.remove('nn');ev.classList.add('nn');
-  el.innerHTML=`<div class="fx ac jb" style="padding:10px 20px"><span class="ts bo">${S.msgs.length} message${S.msgs.length!==1?'s':''}</span><button class="b bg bsm" onclick="loadMessages('${S.aI}')">🔄</button></div>`
+  el.innerHTML=`<div class="fx ac jb" style="padding:16px 20px;border-bottom:1px solid var(--bdr);"><span class="ts bo">${S.msgs.length} message${S.msgs.length!==1?'s':''}</span><button class="b bg bsm" onclick="loadMessages('${S.aI}')">Refresh</button></div>`
     +S.msgs.map((m,i)=>`
     <div class="ei ${m.isRead?'':'ur'} ai" onclick="openMessage('${esc(m.id)}')">
       <div class="av">${(m.from?.name||m.from?.address||'?')[0].toUpperCase()}</div>
@@ -239,7 +237,7 @@ function renderMessageArea(){
         <div class="es">${esc(m.subject||'(no subject)')}</div>
         <div class="ep">${esc(m.intro||'')}</div>
       </div>
-      <div class="fx fc" style="align-items:flex-end;gap:3px;flex-shrink:0">
+      <div class="fx fc" style="align-items:flex-end;gap:4px;flex-shrink:0">
         <div class="tx tm">${ago(m.receivedAt)}</div>
         ${m.otpCode?`<span class="bd2 bd2a">OTP: ${m.otpCode}</span>`:''}
       </div>
@@ -254,28 +252,28 @@ async function openMessage(id){
     if(!d.success)throw new Error(d.error||'Failed to load');
     const m=d.data;
     let html=`<div class="ev ai">
-      <button class="b bg bsm mb4" onclick="backToList()">← Back to inbox</button>`;
+      <button class="b bg bsm mb4" onclick="backToList()">Back to inbox</button>`;
     // OTP section
-    if(m.otpCode)html+=`<div class="otp"><div><div class="otpl">🔐 OTP Code Detected</div><div class="otpv">${esc(m.otpCode)}</div></div><button class="b ba bsm" onclick="copyText('${esc(m.otpCode)}')">📋 Copy</button></div>`;
+    if(m.otpCode)html+=`<div class="otp"><div><div class="otpl">OTP Code Detected</div><div class="otpv">${esc(m.otpCode)}</div></div><button class="b ba bsm" onclick="copyText('${esc(m.otpCode)}')">Copy Code</button></div>`;
     // Verification links
-    if(m.verificationLinks?.length)html+=`<div style="padding:16px 20px;background:linear-gradient(135deg,rgba(52,211,153,.05),rgba(34,211,238,.03));border-radius:var(--r3);margin-bottom:16px"><div class="ts bo mb2" style="color:var(--s)">🔗 Verification Links Found</div>${m.verificationLinks.map(l=>`<a href="${esc(l)}" target="_blank" rel="noopener" class="fx ac g2" style="padding:4px 0;font-size:.76rem;color:var(--a);word-break:break-all">🔗 ${esc(l.length>80?l.slice(0,80)+'...':l)}</a>`).join('')}</div>`;
+    if(m.verificationLinks?.length)html+=`<div style="padding:16px 20px;background:var(--bg1);border:1px solid var(--bdr);border-radius:var(--r3);margin-bottom:16px"><div class="ts bo mb2" style="color:var(--s)">Verification Links Found</div>${m.verificationLinks.map(l=>`<a href="${esc(l)}" target="_blank" rel="noopener" class="fx ac g2" style="padding:4px 0;font-size:.8rem;color:var(--t1);word-break:break-all;text-decoration:underline;">${esc(l.length>80?l.slice(0,80)+'...':l)}</a>`).join('')}</div>`;
     // Subject + meta
     html+=`<div class="evs">${esc(m.subject||'(no subject)')}</div>
       <div class="evm">
-        <div class="av" style="width:32px;height:32px;font-size:.72rem">${(m.from?.name||m.from?.address||'?')[0].toUpperCase()}</div>
+        <div class="av" style="width:36px;height:36px;font-size:.8rem">${(m.from?.name||m.from?.address||'?')[0].toUpperCase()}</div>
         <div class="f1">
           <div class="ts bo">${esc(m.from?.name||m.from?.address||'Unknown')}</div>
-          <div class="tx tm">${esc(m.from?.address||'')} → ${esc(typeof m.to==='string'?m.to:(m.to?.[0]?.address||''))}</div>
+          <div class="tx tm">${esc(m.from?.address||'')} &rarr; ${esc(typeof m.to==='string'?m.to:(m.to?.[0]?.address||''))}</div>
         </div>
         <div class="tx tm">${m.receivedAt?new Date(m.receivedAt).toLocaleString():'—'}</div>
       </div>
-      <div class="fx g2 mb4"><button class="b bg bsm" onclick="deleteMessage('${esc(S.aI)}','${esc(m.id)}')">🗑 Delete</button></div>
-      <div class="evb">${m.bodyHtml?`<iframe srcdoc="${escAttr(m.bodyHtml)}" sandbox="allow-same-origin" style="width:100%;min-height:350px;background:#fff;border-radius:var(--r2)" onload="this.style.height=Math.max(350,this.contentWindow.document.body.scrollHeight+20)+'px'"></iframe>`:`<pre style="white-space:pre-wrap;font-family:var(--f);line-height:1.7">${esc(m.bodyText||'(empty message)')}</pre>`}</div>
+      <div class="fx g2 mb4"><button class="b bg bsm" onclick="deleteMessage('${esc(S.aI)}','${esc(m.id)}')">Delete</button></div>
+      <div class="evb">${m.bodyHtml?`<iframe srcdoc="${escAttr(m.bodyHtml)}" sandbox="allow-same-origin" style="width:100%;min-height:350px;background:#fff;border-radius:var(--r1)" onload="this.style.height=Math.max(350,this.contentWindow.document.body.scrollHeight+20)+'px'"></iframe>`:`<pre style="white-space:pre-wrap;font-family:var(--f);line-height:1.7">${esc(m.bodyText||'(empty message)')}</pre>`}</div>
     </div>`;
     ev.innerHTML=html;
     // Mark as read locally
     const localMsg=S.msgs.find(z=>z.id===id);if(localMsg)localMsg.isRead=true;
-  }catch(e){ev.innerHTML=`<div class="ey"><p class="tm">⚠️ ${esc(e.message)}</p><button class="b bg bsm mt4" onclick="backToList()">← Back</button></div>`}
+  }catch(e){ev.innerHTML=`<div class="ey"><p class="tm">Error: ${esc(e.message)}</p><button class="b bg bsm mt4" onclick="backToList()">Back</button></div>`}
 }
 function backToList(){S.aM=null;renderMessageArea()}
 async function deleteMessage(inboxId,msgId){
@@ -285,13 +283,13 @@ function startLive(inboxId){
   if(S.liveTimeout)clearTimeout(S.liveTimeout);
   S.liveTimeout=setTimeout(()=>{
     stopLive();
-    toast('⏸️ Live updates paused to save resources. Click Refresh to check again.','w',6000);
+    toast('Live updates paused to save resources. Click Refresh to check again.','w',6000);
     const indicator=document.querySelector('#mA .ey span.tx');
     if(indicator)indicator.textContent='Live updates paused';
   },600000);
   try{
     S.sse=new EventSource(`/api/inbox/${inboxId}/stream`);
-    S.sse.onmessage=ev=>{try{const d=JSON.parse(ev.data);if(d.type==='new_messages'&&d.count>0){toast(`📨 ${d.count} new message${d.count>1?'s':''}!`,'s');loadMessages(inboxId);loadInboxes()}}catch(e){}};
+    S.sse.onmessage=ev=>{try{const d=JSON.parse(ev.data);if(d.type==='new_messages'&&d.count>0){toast(`${d.count} new message${d.count>1?'s':''}!`,'s');loadMessages(inboxId);loadInboxes()}}catch(e){}};
     S.sse.onerror=()=>{if(S.sse)S.sse.close();S.sse=null;if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},1000)};
   }catch(e){if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},1000)}
 }
@@ -300,7 +298,7 @@ function startLive(inboxId){
 async function loadAdmin(){
   const ct=$('aCt');if(!ct)return;
   if(!S.user||S.user.role!=='admin'){
-    ct.innerHTML=`<div class="c tc p6"><h3 style="font-size:1.2rem;font-weight:800;margin-bottom:6px">🔒 Admin Access Required</h3><p class="tm ts mb4">Sign in with admin credentials to access controls</p><button class="b bp" onclick="aModal('login')">Sign In as Admin</button></div>`;return;
+    ct.innerHTML=`<div class="c tc p6"><h3 style="font-size:1.2rem;font-weight:600;margin-bottom:8px">Admin Access Required</h3><p class="tm ts mb4">Sign in with admin credentials to access controls</p><button class="b bp" onclick="aModal('login')">Sign In as Admin</button></div>`;return;
   }
   try{
     const d=await A.g('/admin/stats');
@@ -308,27 +306,27 @@ async function loadAdmin(){
       renderAdminStats(d.data);
       const b=$('mtB');
       if(b){
-        b.textContent = d.data.maintenanceMode ? '🚧 Maintenance: ON' : '✅ Maintenance: OFF';
+        b.textContent = d.data.maintenanceMode ? 'Maintenance: ON' : 'Maintenance: OFF';
         b.className = d.data.maintenanceMode ? 'b bd bsm' : 'b bs bsm';
       }
     }
     adminTab('dash');
   }
-  catch(e){ct.innerHTML=`<div class="c p4 tm tc">⚠️ ${esc(e.message)}</div>`}
+  catch(e){ct.innerHTML=`<div class="c p4 tm tc">Error: ${esc(e.message)}</div>`}
 }
 function renderAdminStats(s){
   const st=$('aSt');if(!st)return;
   const items=[
-    ['👥',s.users||0,`Users (${s.activeUsers||0} active)`,'p'],
-    ['📧',s.activeInboxes||0,`Active Inboxes`,'a'],
-    ['💌',s.messages||0,'Total Messages','s'],
-    ['🔑',s.apiKeys||0,'API Keys','w'],
-    ['🌐',`${s.activeProviders||0}/${s.providers||0}`,'Providers Online','d'],
-    ['📊',s.apiRequests24h||0,'API Requests (24h)','p'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>',s.users||0,`Users (${s.activeUsers||0} active)`,'p'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>',s.activeInboxes||0,`Active Inboxes`,'a'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',s.messages||0,'Total Messages','s'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>',s.apiKeys||0,'API Keys','w'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>',`${s.activeProviders||0}/${s.providers||0}`,'Providers Online','d'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',s.apiRequests24h||0,'API Requests (24h)','p'],
   ];
   st.innerHTML=items.map(([ic,v,l,c],i)=>`
     <div class="sc ai">
-      <div class="si" style="background:var(--${c}g);color:var(--${c})">${ic}</div>
+      <div class="si" style="color:var(--t1)">${ic}</div>
       <div class="sv">${v}</div>
       <div class="sl">${l}</div>
     </div>`).join('');
@@ -354,24 +352,24 @@ async function adminTab(t){
       c.innerHTML = `
         <div class="gr g2 mb6" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
           <!-- Quick Operations Card -->
-          <div class="c ai" style="border:none;background:var(--gl);padding:24px">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:700">⚡ Quick Management</h3>
+          <div class="c ai">
+            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Quick Management</h3>
             <div class="fx fc g2">
-              <button class="b bp bw" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('✅ Domains synced','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">🔄 Force Domain Sync</button>
-              <button class="b ba bw" onclick="A.p('/admin/providers/health-check').then(()=>{toast('✅ Health checked','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">💚 Check Provider Statuses</button>
-              <button class="b bd bw" onclick="tMt()">🚧 Toggle Maintenance Mode</button>
+              <button class="b bg bw" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('Domains synced','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">Force Domain Sync</button>
+              <button class="b bg bw" onclick="A.p('/admin/providers/health-check').then(()=>{toast('Health checked','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">Check Provider Statuses</button>
+              <button class="b bg bw" onclick="tMt()">Toggle Maintenance Mode</button>
             </div>
           </div>
 
           <!-- Active System Providers -->
-          <div class="c ai" style="border:none;background:var(--gl);padding:24px">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:700">🌐 Active Provider Pools</h3>
+          <div class="c ai">
+            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Active Provider Pools</h3>
             <div style="max-height:200px;overflow-y:auto">
               ${providers.map(p => `
-                <div class="fx ac jb mb2" style="border-bottom:1px solid var(--bg3);padding-bottom:8px">
+                <div class="fx ac jb mb2" style="border-bottom:1px solid var(--bdr);padding-bottom:12px;margin-bottom:12px;">
                   <div>
-                    <span class="ts bo" style="font-size:.82rem">${esc(p.display_name)}</span>
-                    <span class="tx tm" style="font-size:.65rem;display:block">Prio: ${p.priority} · Req: ${p.request_count}</span>
+                    <span class="ts bo" style="font-size:.85rem">${esc(p.display_name)}</span>
+                    <span class="tx tm" style="font-size:.7rem;display:block">Prio: ${p.priority} · Req: ${p.request_count}</span>
                   </div>
                   <span class="bd2 bd2${p.status==='active'?'s':p.status==='degraded'?'w':'d'}">${p.status}</span>
                 </div>
@@ -382,10 +380,10 @@ async function adminTab(t){
 
         <div class="gr g2" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
           <!-- Recent API Requests -->
-          <div class="c ai" style="border:none;background:var(--gl);padding:24px">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:700">📊 Real-Time API Logs</h3>
+          <div class="c ai">
+            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Real-Time API Logs</h3>
             <div class="tw">
-              <table class="ta" style="font-size:.7rem">
+              <table class="ta" style="font-size:.75rem">
                 <thead>
                   <tr>
                     <th>Method</th>
@@ -409,10 +407,10 @@ async function adminTab(t){
           </div>
 
           <!-- Recent Administrative Actions -->
-          <div class="c ai" style="border:none;background:var(--gl);padding:24px">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:700">📋 Security Audit Logs</h3>
+          <div class="c ai">
+            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Security Audit Logs</h3>
             <div class="tw">
-              <table class="ta" style="font-size:.7rem">
+              <table class="ta" style="font-size:.75rem">
                 <thead>
                   <tr>
                     <th>Action</th>
@@ -445,28 +443,28 @@ async function adminTab(t){
           <td><span class="bd2 bd2${u.status==='active'?'s':'w'}">${u.status}</span></td>
           <td class="tx tm">${u.last_login_at?ago(u.last_login_at):'Never'}</td>
           <td class="fx g2">
-            <select class="ip" style="width:78px;padding:3px;font-size:.62rem" onchange="A.u('/admin/users/${u.id}',{role:this.value}).then(()=>toast('✅ Role updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.role==='user'?'selected':''}>user</option><option ${u.role==='developer'?'selected':''}>developer</option><option ${u.role==='admin'?'selected':''}>admin</option></select>
-            <select class="ip" style="width:78px;padding:3px;font-size:.62rem" onchange="A.u('/admin/users/${u.id}',{status:this.value}).then(()=>toast('✅ Status updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.status==='active'?'selected':''}>active</option><option ${u.status==='suspended'?'selected':''}>suspended</option><option ${u.status==='banned'?'selected':''}>banned</option></select>
+            <select class="ip" style="width:78px;padding:4px;font-size:.7rem" onchange="A.u('/admin/users/${u.id}',{role:this.value}).then(()=>toast('Role updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.role==='user'?'selected':''}>user</option><option ${u.role==='developer'?'selected':''}>developer</option><option ${u.role==='admin'?'selected':''}>admin</option></select>
+            <select class="ip" style="width:78px;padding:4px;font-size:.7rem" onchange="A.u('/admin/users/${u.id}',{status:this.value}).then(()=>toast('Status updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.status==='active'?'selected':''}>active</option><option ${u.status==='suspended'?'selected':''}>suspended</option><option ${u.status==='banned'?'selected':''}>banned</option></select>
           </td>
         </tr>`).join('')}</tbody></table></div>`;
     }
     else if(t==='prov'){
       const d=await A.g('/admin/providers');
       c.innerHTML=`<div class="fx g2 mb4 fw">
-        <button class="b bp bsm" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('✅ Domains synced','s');adminTab('prov')}).catch(e=>toast(e.message,'e'))">🔄 Sync All Domains</button>
-        <button class="b ba bsm" onclick="A.p('/admin/providers/health-check').then(()=>{toast('✅ Health checked','s');adminTab('prov')}).catch(e=>toast(e.message,'e'))">💚 Run Health Check</button>
+        <button class="b bg bsm" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('Domains synced','s');adminTab('prov')}).catch(e=>toast(e.message,'e'))">Sync All Domains</button>
+        <button class="b bg bsm" onclick="A.p('/admin/providers/health-check').then(()=>{toast('Health checked','s');adminTab('prov')}).catch(e=>toast(e.message,'e'))">Run Health Check</button>
       </div>
       <div class="sg" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
         ${(d.data||[]).map(p=>`<div class="c ai">
-          <div class="fx ac jb mb2">
+          <div class="fx ac jb mb4">
             <span class="bo ts">${esc(p.display_name)}</span>
             <span class="bd2 bd2${p.status==='active'?'s':p.status==='degraded'?'w':'d'}">${p.status}</span>
           </div>
           <div class="tx tm mb1">Health: <span class="bd2 bd2${p.health_status==='healthy'?'s':p.health_status==='degraded'?'w':'d'}">${p.health_status||'unknown'}</span> · ${p.avg_response_ms||0}ms</div>
           <div class="tx tm mb1">Requests: ${p.request_count||0} · Errors: ${p.error_count||0}</div>
           <div class="tx tm">Priority: ${p.priority} · Weight: ${p.weight}</div>
-          <div class="mt2">
-            <select class="ip" style="width:100%;padding:4px 8px;font-size:.65rem" onchange="A.u('/admin/providers/${p.id}',{status:this.value}).then(()=>{toast('Updated','s');adminTab('prov')})">
+          <div class="mt4">
+            <select class="ip" style="width:100%;padding:6px 10px;font-size:.75rem" onchange="A.u('/admin/providers/${p.id}',{status:this.value}).then(()=>{toast('Updated','s');adminTab('prov')})">
               <option ${p.status==='active'?'selected':''}>active</option>
               <option ${p.status==='degraded'?'selected':''}>degraded</option>
               <option ${p.status==='disabled'?'selected':''}>disabled</option>
@@ -485,7 +483,7 @@ async function adminTab(t){
     else if(t==='ibx'){
       const d=await A.g('/admin/inboxes');
       c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Address</th><th>Provider</th><th>Messages</th><th>Created</th><th></th></tr></thead><tbody>
-        ${(d.data||[]).map(i=>`<tr><td class="mn2 tx">${esc(i.email_address)}</td><td class="tx">${esc(i.provider_name||'')}</td><td>${i.message_count||0}</td><td class="tx tm">${ago(i.created_at)}</td><td><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/inboxes/${i.id}').then(()=>{toast('Deleted','i');adminTab('ibx')})">🗑</button></td></tr>`).join('')}
+        ${(d.data||[]).map(i=>`<tr><td class="mn2 tx">${esc(i.email_address)}</td><td class="tx">${esc(i.provider_name||'')}</td><td>${i.message_count||0}</td><td class="tx tm">${ago(i.created_at)}</td><td><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/inboxes/${i.id}').then(()=>{toast('Deleted','i');adminTab('ibx')})">Delete</button></td></tr>`).join('')}
         </tbody></table></div>`;
     }
     else if(t==='akey'){
@@ -502,26 +500,26 @@ async function adminTab(t){
     }
     else if(t==='ann'){
       const d=await A.g('/admin/announcements');
-      c.innerHTML=`<div class="fx ac jb mb4"><h3 class="bo ts">Announcements</h3><button class="b bp bsm" onclick="announceModal()">+ New</button></div>
-        ${(d.data||[]).length?(d.data||[]).map(a=>`<div class="c mb2 ai"><div class="fx ac jb mb2"><span class="bo">${esc(a.title)}</span><div class="fx g2"><span class="bd2 bd2${a.type==='critical'?'d':a.type==='warning'?'w':'p'}">${a.type}</span><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/announcements/${a.id}').then(()=>{toast('Deleted','i');adminTab('ann')})">🗑</button></div></div><p class="ts t2">${esc(a.content)}</p></div>`).join(''):'<div class="c p4 tm tc">No announcements yet</div>'}`;
+      c.innerHTML=`<div class="fx ac jb mb4"><h3 class="bo ts">Announcements</h3><button class="b bg bsm" onclick="announceModal()">New</button></div>
+        ${(d.data||[]).length?(d.data||[]).map(a=>`<div class="c mb4 ai"><div class="fx ac jb mb2"><span class="bo">${esc(a.title)}</span><div class="fx g2"><span class="bd2 bd2${a.type==='critical'?'d':a.type==='warning'?'w':'p'}">${a.type}</span><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/announcements/${a.id}').then(()=>{toast('Deleted','i');adminTab('ann')})">Delete</button></div></div><p class="ts t2">${esc(a.content)}</p></div>`).join(''):'<div class="c p4 tm tc">No announcements yet</div>'}`;
     }
     else if(t==='flg'){
       const d=await A.g('/admin/feature-flags');
-      c.innerHTML=`<div class="gr g3" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${(d.data||[]).map(f=>`<div class="c ai"><div class="fx ac jb"><div><div class="bo ts">${esc(f.name)}</div><div class="tx tm">${esc(f.description||'')}</div></div><button class="b ${f.is_enabled?'bs':'bg'} bsm" onclick="A.u('/admin/feature-flags/${f.id}',{isEnabled:${!f.is_enabled}}).then(()=>{toast('Updated','s');adminTab('flg')})">${f.is_enabled?'✅ ON':'❌ OFF'}</button></div></div>`).join('')}</div>`;
+      c.innerHTML=`<div class="gr g3" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${(d.data||[]).map(f=>`<div class="c ai"><div class="fx ac jb"><div><div class="bo ts">${esc(f.name)}</div><div class="tx tm mt2">${esc(f.description||'')}</div></div><button class="b ${f.is_enabled?'bg':'bg'} bsm" onclick="A.u('/admin/feature-flags/${f.id}',{isEnabled:${!f.is_enabled}}).then(()=>{toast('Updated','s');adminTab('flg')})">${f.is_enabled?'ON':'OFF'}</button></div></div>`).join('')}</div>`;
     }
     else if(t==='set'){
       const d=await A.g('/admin/settings');
-      c.innerHTML=`<div class="gr g3" style="grid-template-columns:repeat(auto-fill,minmax(350px,1fr))">${(d.data||[]).map(s=>`<div class="c ai"><div class="tx tm mb2">${esc(s.description||'')}</div><div class="fx ac g2"><span class="mn2 ts bo" style="min-width:140px">${esc(s.key)}</span><input class="ip f1" value="${esc(s.value||'')}" id="st_${s.key}" style="padding:5px 8px;font-size:.74rem"><button class="b bp bsm" onclick="A.u('/admin/settings/${s.key}',{value:document.getElementById('st_${s.key}').value}).then(()=>toast('✅ Saved','s')).catch(e=>toast(e.message,'e'))">Save</button></div></div>`).join('')}</div>`;
+      c.innerHTML=`<div class="gr g3" style="grid-template-columns:repeat(auto-fill,minmax(350px,1fr))">${(d.data||[]).map(s=>`<div class="c ai"><div class="tx tm mb2">${esc(s.description||'')}</div><div class="fx ac g2"><span class="mn2 ts bo" style="min-width:140px">${esc(s.key)}</span><input class="ip f1" value="${esc(s.value||'')}" id="st_${s.key}" style="padding:6px 10px;font-size:.75rem"><button class="b bg bsm" onclick="A.u('/admin/settings/${s.key}',{value:document.getElementById('st_${s.key}').value}).then(()=>toast('Saved','s')).catch(e=>toast(e.message,'e'))">Save</button></div></div>`).join('')}</div>`;
     }
-  }catch(e){c.innerHTML=`<div class="c p4 tm tc">⚠️ ${esc(e.message)}</div>`}
+  }catch(e){c.innerHTML=`<div class="c p4 tm tc">Error: ${esc(e.message)}</div>`}
 }
 // Alias for HTML onclick
 function aT(t){adminTab(t)}
 function announceModal(){
-  $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>📢 New Announcement</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Title</label><input class="ip" id="anT" placeholder="Announcement title"></div><div class="ig"><label>Content</label><textarea class="ip" id="anC" rows="3" placeholder="Details..."></textarea></div><div class="ig"><label>Type</label><select class="ip" id="anY"><option value="info">ℹ️ Info</option><option value="warning">⚠️ Warning</option><option value="critical">🔴 Critical</option></select></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="A.p('/admin/announcements',{title:$('anT').value,content:$('anC').value,type:$('anY').value}).then(()=>{closeModal();toast('✅ Created','s');adminTab('ann')}).catch(e=>toast(e.message,'e'))">Publish</button></div></div></div>`;
+  $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>New Announcement</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Title</label><input class="ip" id="anT" placeholder="Announcement title"></div><div class="ig"><label>Content</label><textarea class="ip" id="anC" rows="3" placeholder="Details..."></textarea></div><div class="ig"><label>Type</label><select class="ip" id="anY"><option value="info">Info</option><option value="warning">Warning</option><option value="critical">Critical</option></select></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="A.p('/admin/announcements',{title:$('anT').value,content:$('anC').value,type:$('anY').value}).then(()=>{closeModal();toast('Created','s');adminTab('ann')}).catch(e=>toast(e.message,'e'))">Publish</button></div></div></div>`;
 }
 function aRef(){loadAdmin()}
-async function tMt(){try{const d=await A.p('/admin/maintenance',{});toast(`Maintenance mode is now ${d.maintenanceMode ? 'ON 🚧' : 'OFF ✅'}`,'w');loadAdmin()}catch(e){toast(e.message,'e')}}
+async function tMt(){try{const d=await A.p('/admin/maintenance',{});toast(`Maintenance mode is now ${d.maintenanceMode ? 'ON' : 'OFF'}`,'w');loadAdmin()}catch(e){toast(e.message,'e')}}
 
 /* ═══════════════════ DEVELOPER ═══════════════════ */
 function loadDeveloper(){
@@ -538,14 +536,14 @@ function loadDeveloper(){
     const c = $('dC');
     if(c) {
       c.innerHTML = `
-        <div class="c tc p8" style="background:var(--gl);border:none;padding:48px 24px">
-          <div style="font-size:3rem;margin-bottom:20px">⚡</div>
-          <h2 style="font-size:1.4rem;font-weight:800;margin-bottom:8px">Activate Developer Platform</h2>
-          <p class="tm ts mb6" style="max-width:500px;margin-left:auto;margin-right:auto">
+        <div class="c tc p8" style="background:var(--bg0);border:1px solid var(--bdr);padding:64px 24px">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:24px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          <h2 style="font-size:1.5rem;font-weight:600;margin-bottom:12px">Activate Developer Platform</h2>
+          <p class="tm ts mb6" style="max-width:500px;margin-left:auto;margin-right:auto;line-height:1.6">
             Build integrations, automate email registrations, and receive callbacks using our enterprise temporary mail APIs. 
             Access API keys, Webhooks, API Playground, SDKs, and complete developer analytics.
           </p>
-          <button class="b bp pl6 pr6 pt3 pb3" style="font-size:.9rem;font-weight:700" onclick="bDev()">🚀 Activate Developer Access (Free)</button>
+          <button class="b bp pl6 pr6 pt3 pb3" style="font-size:.9rem;font-weight:600" onclick="bDev()">Activate Developer Access (Free)</button>
         </div>
       `;
     }
@@ -567,18 +565,18 @@ async function loadKeys(){
   try{const d=await A.g('/developer/api-keys');
     if(!d.data?.length){c.innerHTML='<p class="tm tc p4">No API keys — create one to get started</p>';return}
     c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Name</th><th>Key Prefix</th><th>Quota</th><th>Status</th><th></th></tr></thead><tbody>
-      ${d.data.map(k=>`<tr><td class="bo">${esc(k.name)}</td><td class="mn2 tx">${k.key_prefix}...</td><td class="tx">${k.quota_used_today||0}/${k.quota_daily||1000}</td><td><span class="bd2 bd2${k.status==='active'?'s':'d'}">${k.status}</span></td><td><button class="b bd bsm" onclick="A.d('/developer/api-keys/${k.id}').then(()=>{loadKeys();toast('🔑 Key revoked','i')})">Revoke</button></td></tr>`).join('')}
+      ${d.data.map(k=>`<tr><td class="bo">${esc(k.name)}</td><td class="mn2 tx">${k.key_prefix}...</td><td class="tx">${k.quota_used_today||0}/${k.quota_daily||1000}</td><td><span class="bd2 bd2${k.status==='active'?'s':'d'}">${k.status}</span></td><td><button class="b bg bsm" onclick="A.d('/developer/api-keys/${k.id}').then(()=>{loadKeys();toast('Key revoked','i')})">Revoke</button></td></tr>`).join('')}
     </tbody></table></div>`}
-  catch(e){c.innerHTML=`<p class="tm p4 tc">⚠️ ${esc(e.message)}</p>`}
+  catch(e){c.innerHTML=`<p class="tm p4 tc">Error: ${esc(e.message)}</p>`}
 }
 function kModal(){
-  $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>🔑 Create API Key</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Key Name</label><input class="ip" id="kN" placeholder="My Application"></div><div class="ig"><label>Daily Quota</label><input class="ip" id="kQ" type="number" value="1000"></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="createKey()">Create Key</button></div></div></div>`;
+  $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>Create API Key</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Key Name</label><input class="ip" id="kN" placeholder="My Application"></div><div class="ig"><label>Daily Quota</label><input class="ip" id="kQ" type="number" value="1000"></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="createKey()">Create Key</button></div></div></div>`;
 }
 async function createKey(){
   try{
     const d=await A.p('/developer/api-keys',{name:$('kN')?.value||'Key',quotaDaily:parseInt($('kQ')?.value)||1000});
     closeModal();
-    $('mC').innerHTML=`<div class="mo"><div class="mx ai"><div class="mh"><h2>🎉 API Key Created!</h2></div><div class="mb"><div style="background:var(--bg0);padding:16px;border-radius:var(--r2);margin-bottom:12px"><div class="tx tm mb2">⚠️ Copy this key now — it won't be shown again!</div><code class="mn2 sa" style="word-break:break-all;color:var(--a);display:block;padding:10px;background:var(--bg2);border-radius:var(--r1);font-size:.82rem">${d.data.key}</code></div><button class="b ba bw" onclick="copyText('${d.data.key}');closeModal()">📋 Copy Key & Close</button></div></div></div>`;
+    $('mC').innerHTML=`<div class="mo"><div class="mx ai"><div class="mh"><h2>API Key Created</h2></div><div class="mb"><div style="background:var(--bg1);padding:16px;border:1px solid var(--bdr);border-radius:var(--r2);margin-bottom:12px"><div class="tx tm mb2">Copy this key now — it won't be shown again!</div><code class="mn2 sa" style="word-break:break-all;color:var(--t1);display:block;padding:12px;background:var(--bg0);border:1px solid var(--bdr);border-radius:var(--r1);font-size:.85rem">${d.data.key}</code></div><button class="b bg bw" onclick="copyText('${d.data.key}');closeModal()">Copy Key & Close</button></div></div></div>`;
     loadKeys();
   }catch(e){toast(e.message,'e')}
 }
@@ -588,14 +586,14 @@ async function loadDevAnalytics(){
 }
 async function loadDevLogs(){
   const c=$('dLg');if(!c)return;
-  try{const d=await A.g('/developer/logs');c.innerHTML=(d.data||[]).length?`<table class="ta"><thead><tr><th>Method</th><th>Path</th><th>Status</th><th>Time</th><th>Date</th></tr></thead><tbody>${d.data.map(l=>`<tr><td><span class="bd2 bd2${l.method==='GET'?'s':'a'}">${l.method}</span></td><td class="mn2 tx">${esc(l.path)}</td><td><span class="bd2 bd2${(l.status_code||200)<400?'s':'d'}">${l.status_code||200}</span></td><td class="tx">${l.response_time_ms||0}ms</td><td class="tx tm">${ago(l.created_at)}</td></tr>`).join('')}</tbody></table>`:'<p class="tm p4 tc">No logs yet</p>'}catch(e){c.innerHTML=`<p class="tm p4 tc">⚠️ ${esc(e.message)}</p>`}
+  try{const d=await A.g('/developer/logs');c.innerHTML=(d.data||[]).length?`<table class="ta"><thead><tr><th>Method</th><th>Path</th><th>Status</th><th>Time</th><th>Date</th></tr></thead><tbody>${d.data.map(l=>`<tr><td><span class="bd2 bd2${l.method==='GET'?'s':'a'}">${l.method}</span></td><td class="mn2 tx">${esc(l.path)}</td><td><span class="bd2 bd2${(l.status_code||200)<400?'s':'d'}">${l.status_code||200}</span></td><td class="tx">${l.response_time_ms||0}ms</td><td class="tx tm">${ago(l.created_at)}</td></tr>`).join('')}</tbody></table>`:'<p class="tm p4 tc">No logs yet</p>'}catch(e){c.innerHTML=`<p class="tm p4 tc">Error: ${esc(e.message)}</p>`}
 }
 async function loadWebhooks(){
   const c=$('wL');if(!c)return;
-  try{const d=await A.g('/developer/webhooks');c.innerHTML=(d.data||[]).length?d.data.map(w=>`<div class="fx ac jb p4"><div class="f1"><div class="mn2 tx" style="color:var(--a)">${esc(w.url)}</div><div class="tx tm mt2">Events: ${(()=>{try{return JSON.parse(w.events).join(', ')}catch(e){return w.events||'all'}})()}</div></div><button class="b bd bsm" onclick="A.d('/developer/webhooks/${w.id}').then(()=>{loadWebhooks();toast('Deleted','i')})">Delete</button></div>`).join(''):'<p class="tm p4 tc">No webhooks configured</p>'}catch(e){c.innerHTML=`<p class="tm p4 tc">⚠️ ${esc(e.message)}</p>`}
+  try{const d=await A.g('/developer/webhooks');c.innerHTML=(d.data||[]).length?d.data.map(w=>`<div class="fx ac jb p4" style="border-bottom:1px solid var(--bdr)"><div class="f1"><div class="mn2 tx" style="color:var(--t1)">${esc(w.url)}</div><div class="tx tm mt2">Events: ${(()=>{try{return JSON.parse(w.events).join(', ')}catch(e){return w.events||'all'}})()}</div></div><button class="b bg bsm" onclick="A.d('/developer/webhooks/${w.id}').then(()=>{loadWebhooks();toast('Deleted','i')})">Delete</button></div>`).join(''):'<p class="tm p4 tc">No webhooks configured</p>'}catch(e){c.innerHTML=`<p class="tm p4 tc">Error: ${esc(e.message)}</p>`}
 }
-function whM(){$('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>🔗 Add Webhook</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Endpoint URL</label><input class="ip" id="whU" placeholder="https://your-server.com/webhook"></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="A.p('/developer/webhooks',{url:$('whU').value}).then(()=>{closeModal();loadWebhooks();toast('✅ Webhook created','s')}).catch(e=>toast(e.message,'e'))">Create</button></div></div></div>`}
-async function bDev(){if(!S.user){aModal('register');return}try{await A.p('/developer/register');toast('🚀 Developer access activated!','s');await checkAuth();loadDeveloper()}catch(e){toast(e.message,'e')}}
+function whM(){$('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>Add Webhook</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Endpoint URL</label><input class="ip" id="whU" placeholder="https://your-server.com/webhook"></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="A.p('/developer/webhooks',{url:$('whU').value}).then(()=>{closeModal();loadWebhooks();toast('Webhook created','s')}).catch(e=>toast(e.message,'e'))">Create</button></div></div></div>`}
+async function bDev(){if(!S.user){aModal('register');return}try{await A.p('/developer/register');toast('Developer access activated!','s');await checkAuth();loadDeveloper()}catch(e){toast(e.message,'e')}}
 async function rPg(){
   const m=$('pM')?.value||'GET',u=$('pU')?.value||'/api/domains',b=$('pB')?.value,h=$('pH')?.value,r=$('pR');
   if(!r)return;r.textContent='// Sending request...';r.style.color='var(--t3)';
@@ -640,31 +638,31 @@ function renderDocs(c){
   ];
   c.innerHTML=`<div class="ai">
     <div class="fx ac g3 mb6">
-      <div class="lg" style="width:48px;height:48px;font-size:1.3rem;border-radius:var(--r2)">✉</div>
-      <div><h2 style="font-size:1.4rem;font-weight:900;letter-spacing:-.03em">XyronMail API v2.0</h2><p class="tx tm">${endpoints.length} endpoints · REST + SSE Real-time</p></div>
+      <div class="lg" style="width:48px;height:48px;font-size:1.3rem;border-radius:var(--r2)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></div>
+      <div><h2 style="font-size:1.5rem;font-weight:700;letter-spacing:-.02em;margin-bottom:4px">XyronMail API v2.0</h2><p class="tx tm">${endpoints.length} endpoints · REST + SSE Real-time</p></div>
     </div>
     <h3 class="bo mb2 ts">Base URL</h3>
-    <div class="c mb6" style="padding:12px 16px"><code class="mn2 ts sa" style="color:var(--a)">${base}/api</code></div>
+    <div class="c mb6" style="padding:16px"><code class="mn2 ts sa" style="color:var(--t1)">${base}/api</code></div>
     <h3 class="bo mb4 ts">All Endpoints</h3>
     ${endpoints.map(([m,p,d,auth,body])=>`
-    <div class="c mb2 ai" style="padding:14px 18px">
+    <div class="c mb2 ai" style="padding:16px 20px">
       <div class="fx ac g2 fw">
         <span class="bd2 bd2${m==='GET'?'s':m==='POST'?'a':m==='PUT'?'w':'d'}" style="min-width:52px;justify-content:center">${m}</span>
         <code class="mn2 ts" style="color:var(--t1)">/api${p}</code>
-        ${auth?'<span class="bd2 bd2w">🔒 Auth</span>':'<span class="bd2 bd2m">🌐 Public</span>'}
+        ${auth?'<span class="bd2 bd2w">Auth</span>':'<span class="bd2 bd2m">Public</span>'}
       </div>
       <p class="tx tm mt2">${d}</p>
-      ${body?`<pre style="background:var(--bg0);padding:8px 12px;border-radius:var(--r1);margin-top:8px;font-size:.66rem;color:var(--t3);font-family:var(--fm);overflow-x:auto">${body}</pre>`:''}
+      ${body?`<pre style="background:var(--bg1);padding:12px 16px;border:1px solid var(--bdr);border-radius:var(--r1);margin-top:12px;font-size:.75rem;color:var(--t2);font-family:var(--fm);overflow-x:auto">${body}</pre>`:''}
     </div>`).join('')}
     <h3 class="bo mb2 mt6 ts">Authentication</h3>
-    <div class="c mb6"><div class="mn2 tx" style="background:var(--bg0);padding:14px;border-radius:var(--r2);color:var(--a);line-height:2">// Option 1: Bearer token<br>Authorization: Bearer &lt;jwt_token&gt;<br><br>// Option 2: API Key<br>X-API-Key: xm_your_api_key_here</div></div>
+    <div class="c mb6"><div class="mn2 tx" style="background:var(--bg1);border:1px solid var(--bdr);padding:16px;border-radius:var(--r2);color:var(--t1);line-height:2">// Option 1: Bearer token<br>Authorization: Bearer &lt;jwt_token&gt;<br><br>// Option 2: API Key<br>X-API-Key: xm_your_api_key_here</div></div>
     <h3 class="bo mb2 ts">Rate Limits</h3>
     <div class="c"><p class="ts t2">200 requests / 15 min per IP · API keys: 1000 / day (configurable)</p></div>
   </div>`;
 }
 
 /* ═══════════════════ ANNOUNCEMENTS ═══════════════════ */
-async function loadAnnouncements(){try{const d=await A.g('/announcements');if(d.data?.length)d.data.forEach(a=>toast(`📢 ${a.title}`,'i',5000))}catch(e){}}
+async function loadAnnouncements(){try{const d=await A.g('/announcements');if(d.data?.length)d.data.forEach(a=>toast(`Announcement: ${a.title}`,'i',5000))}catch(e){}}
 
 /* ═══════════════════ UTILITIES ═══════════════════ */
 function toast(msg,type='i',dur=3000){
@@ -674,10 +672,10 @@ function toast(msg,type='i',dur=3000){
 }
 function copyText(t){
   if(!t)return;
-  navigator.clipboard?.writeText(t).then(()=>toast('📋 Copied!','s',1500)).catch(()=>{
+  navigator.clipboard?.writeText(t).then(()=>toast('Copied to clipboard','s',1500)).catch(()=>{
     const a=document.createElement('textarea');a.value=t;a.style.cssText='position:fixed;opacity:0';
     document.body.appendChild(a);a.select();document.execCommand('copy');document.body.removeChild(a);
-    toast('📋 Copied!','s',1500);
+    toast('Copied to clipboard','s',1500);
   });
 }
 function closeModal(){const mc=$('mC');if(mc)mc.innerHTML=''}

