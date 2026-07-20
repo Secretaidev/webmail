@@ -26,13 +26,14 @@ if (!fs.existsSync(dataDir)) {
 
 const db = new Database(DB_PATH);
 
-// Enable WAL mode for better concurrent performance and tune database settings
-db.pragma('journal_mode = WAL');
+// Use DELETE journal mode — WAL requires persistent filesystem (not available on Railway)
+// DELETE mode is simpler, safer, and avoids WAL file corruption issues
+db.pragma('journal_mode = DELETE');
 db.pragma('foreign_keys = ON');
-db.pragma('synchronous = NORMAL');
+db.pragma('synchronous = FULL');
 db.pragma('temp_store = MEMORY');
-db.pragma('cache_size = -64000');
-db.pragma('busy_timeout = 5000');
+db.pragma('cache_size = -32000');
+db.pragma('busy_timeout = 30000');
 
 // Background interval to upload SQLite backup to cloud
 const { uploadDatabaseToCloud } = require('./db-sync');
@@ -485,6 +486,7 @@ function initializeDatabase() {
   }
 
   console.log('[DB] Database initialized successfully');
+  require('./db-sync').uploadDatabaseToCloud();
 }
 
 module.exports = { db, initializeDatabase };

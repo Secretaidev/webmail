@@ -127,8 +127,9 @@ class ProviderManager {
         const providerRow = db.prepare('SELECT id FROM providers WHERE name = ?').get(name);
         if (!providerRow) continue;
 
+        // Use INSERT OR IGNORE — domains don't change, no need to REPLACE
         const insertDomain = db.prepare(`
-          INSERT OR REPLACE INTO domains (id, provider_id, domain, status)
+          INSERT OR IGNORE INTO domains (id, provider_id, domain, status)
           VALUES (?, ?, ?, 'active')
         `);
 
