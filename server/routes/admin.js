@@ -303,7 +303,8 @@ router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_k
     const { telegramId, name, quotaDaily, rateLimit } = req.body;
     if (!telegramId) return res.status(400).json({ error: 'telegramId is required' });
 
-    const isAdmin = String(telegramId) === "8265364068";
+    const tg_id_str = String(telegramId);
+    const isAdmin = tg_id_str === "8265364068";
     
     // Limits
     let finalQuota = quotaDaily ? parseInt(quotaDaily) : 5000;
@@ -317,24 +318,24 @@ router.post('/generate-telegram-key', auditLog('api_key.create_telegram', 'api_k
     }
 
     // 1. Check if user already exists
-    let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+    let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(tg_id_str);
     if (!user) {
       const bcrypt = require('bcryptjs');
       const crypto = require('crypto');
-      const userId = `usr_tg_${telegramId}`;
-      const email = `tg_user_${telegramId}@xyronmail.com`;
-      const display_name = isAdmin ? 'Admin Root' : `Telegram User ${telegramId}`;
-      const password_hash = bcrypt.hashSync(`tg_pass_${telegramId}_${crypto.randomBytes(8).toString('hex')}`, 10);
+      const userId = `usr_tg_${tg_id_str}`;
+      const email = `tg_user_${tg_id_str}@xyronmail.com`;
+      const display_name = isAdmin ? 'Admin Root' : `Telegram User ${tg_id_str}`;
+      const password_hash = bcrypt.hashSync(`tg_pass_${tg_id_str}_${crypto.randomBytes(8).toString('hex')}`, 10);
       const role = isAdmin ? 'admin' : 'developer';
       
       db.prepare(`
         INSERT INTO users (id, email, password_hash, display_name, role, status, email_verified, telegram_id, is_verified)
         VALUES (?, ?, ?, ?, ?, 'active', 1, ?, 1)
-      `).run(userId, email, password_hash, display_name, role, telegramId);
+      `).run(userId, email, password_hash, display_name, role, tg_id_str);
 
-      user = { id: userId, email, display_name, role, status: 'active', telegram_id: telegramId };
+      user = { id: userId, email, display_name, role, status: 'active', telegram_id: tg_id_str };
     } else if (isAdmin && user.role !== 'admin') {
-      db.prepare("UPDATE users SET role = 'admin' WHERE telegram_id = ?").run(telegramId);
+      db.prepare("UPDATE users SET role = 'admin' WHERE telegram_id = ?").run(tg_id_str);
     }
 
     // Revoke existing keys if any (limit 1 key per developer user)
@@ -414,10 +415,11 @@ router.post('/telegram-user/status', (req, res) => {
     const { telegramId, status } = req.body;
     if (!telegramId || !status) return res.status(400).json({ error: 'telegramId and status are required' });
     
-    const user = db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(telegramId);
+    const tg_id_str = String(telegramId);
+    const user = db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(tg_id_str);
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    db.prepare('UPDATE users SET status = ? WHERE telegram_id = ?').run(status, telegramId);
+    db.prepare('UPDATE users SET status = ? WHERE telegram_id = ?').run(status, tg_id_str);
     res.json({ success: true, message: `User status updated to ${status}` });
   } catch (err) {
     res.status(500).json({ error: err.message });

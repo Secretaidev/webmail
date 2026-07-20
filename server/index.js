@@ -297,6 +297,7 @@ app.post('/api/complete-telegram-verification', async (req, res) => {
     const { telegramId, ip, country, device, ua } = req.body;
     if (!telegramId) return res.status(400).json({ error: 'telegramId is required' });
 
+    const tg_id_str = String(telegramId);
     const { db } = require('./db');
     const { v4: uuidv4 } = require('uuid');
     const crypto = require('crypto');
@@ -308,22 +309,22 @@ app.post('/api/complete-telegram-verification', async (req, res) => {
     db.prepare(`
       INSERT INTO telegram_verifications (id, telegram_id, ip_address, user_agent, country, device_type)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, telegramId, ip || '', ua || '', country || '', device || '');
+    `).run(id, tg_id_str, ip || '', ua || '', country || '', device || '');
 
     // Sync state in users table
-    let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId);
+    let user = db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(tg_id_str);
     if (!user) {
-      const userId = `usr_tg_${telegramId}`;
-      const email = `tg_user_${telegramId}@xyronmail.com`;
-      const display_name = `Telegram User ${telegramId}`;
-      const password_hash = bcrypt.hashSync(`tg_pass_${telegramId}_${crypto.randomBytes(8).toString('hex')}`, 10);
+      const userId = `usr_tg_${tg_id_str}`;
+      const email = `tg_user_${tg_id_str}@xyronmail.com`;
+      const display_name = `Telegram User ${tg_id_str}`;
+      const password_hash = bcrypt.hashSync(`tg_pass_${tg_id_str}_${crypto.randomBytes(8).toString('hex')}`, 10);
       
       db.prepare(`
         INSERT INTO users (id, email, password_hash, display_name, role, status, email_verified, telegram_id, is_verified)
         VALUES (?, ?, ?, ?, 'user', 'active', 1, ?, 1)
-      `).run(userId, email, password_hash, display_name, telegramId);
+      `).run(userId, email, password_hash, display_name, tg_id_str);
     } else {
-      db.prepare('UPDATE users SET is_verified = 1 WHERE telegram_id = ?').run(telegramId);
+      db.prepare('UPDATE users SET is_verified = 1 WHERE telegram_id = ?').run(tg_id_str);
     }
 
     res.json({ success: true });
@@ -336,8 +337,9 @@ app.get('/api/check-telegram-verification', (req, res) => {
   const tg_id = req.query.telegramId;
   if (!tg_id) return res.status(400).json({ error: 'telegramId parameter is required' });
   
+  const tg_id_str = String(tg_id);
   const { db } = require('./db');
-  const user = db.prepare('SELECT is_verified, status FROM users WHERE telegram_id = ?').get(tg_id);
+  const user = db.prepare('SELECT is_verified, status FROM users WHERE telegram_id = ?').get(tg_id_str);
   res.json({
     success: true,
     verified: user ? user.is_verified === 1 : false,
