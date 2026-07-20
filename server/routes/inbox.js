@@ -18,9 +18,19 @@ router.use(optionalAuth);
 router.get('/domains', (req, res) => {
   try {
     const domains = providerManager.getAllDomains();
+    
+    // Separate specific premium providers and the massive domainpool
+    const specific = domains.filter(d => d.provider_name !== 'domainpool');
+    const pool = domains.filter(d => d.provider_name === 'domainpool');
+    
+    // Pick 80 random domains from the pool to keep it dynamic and fast
+    const shuffledPool = pool.sort(() => 0.5 - Math.random()).slice(0, 80);
+    
+    const combined = [...specific, ...shuffledPool];
+    
     res.json({
       success: true,
-      data: domains.map(d => ({
+      data: combined.map(d => ({
         id: d.id,
         domain: d.domain,
         provider: 'XyronMail Network',
@@ -186,10 +196,16 @@ router.get('/inbox/:id/messages', async (req, res) => {
     // Refresh from provider
     const refresh = req.query.refresh !== 'false';
     if (refresh) {
-      try {
-        await providerManager.refreshMessages(inbox.id);
-      } catch (e) {
-        console.error('[API] Refresh error:', e.message);
+      const nowMs = Date.now();
+      const lastCheckMs = inbox.last_checked_at ? new Date(inbox.last_checked_at + 'Z').getTime() : 0;
+      
+      // Throttle provider check to once every 4 seconds to make navigation instant and prevent API rate-limiting
+      if (nowMs - lastCheckMs > 4000) {
+        try {
+          await providerManager.refreshMessages(inbox.id);
+        } catch (e) {
+          console.error('[API] Refresh error:', e.message);
+        }
       }
     }
 

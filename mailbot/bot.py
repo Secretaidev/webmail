@@ -363,13 +363,30 @@ async def monitor_expired_job(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"[Monitor] Expired job error: {e}")
 
 # ═══════════════════ SECURITY & VERIFICATION ═══════════════════
+# In-memory cache for user verification status to avoid repetitive HTTP calls
+# Key: user_id (int), Value: (is_allowed: bool, cache_time: float)
+_user_access_cache = {}
+CACHE_TTL = 300  # 5 minutes TTL for verified users
+
 async def check_user_access(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
     """
     Checks if user is verified via Web App in database.
     Returns True if allowed, False if verification is required.
+    Uses in-memory cache to keep bot response speeds near-instantaneous.
     """
     if user_id == ADMIN_TG_ID:
         return True  # Admin bypasses force checks!
+
+    now = time.time()
+    if user_id in _user_access_cache:
+        cached_allowed, cached_time = _user_access_cache[user_id]
+        if now - cached_time < CACHE_TTL:
+            if cached_allowed:
+                return True
+            # For unverified states, only recheck every 15 seconds to prevent spamming
+            elif now - cached_time < 15:
+                await show_force_join_message(update, context, user_id)
+                return False
 
     # 1. Check Web App Verification & User Status in Database
     try:
@@ -378,9 +395,11 @@ async def check_user_access(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             status = res.get("status", "active")
             if status in ["suspended", "banned"]:
                 await show_suspended_message(update, context)
+                _user_access_cache[user_id] = (False, now)
                 return False
             if not res.get("verified"):
                 await show_force_join_message(update, context, user_id)
+                _user_access_cache[user_id] = (False, now)
                 return False
     except Exception as e:
         logger.error(f"Error checking web verification for user {user_id}: {e}")
@@ -392,11 +411,14 @@ async def check_user_access(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         member = await context.bot.get_chat_member(chat_id="@Xyron_Bots", user_id=user_id)
         if member.status in ['left', 'kicked']:
             await show_force_join_message(update, context, user_id)
+            _user_access_cache[user_id] = (False, now)
             return False
     except Exception as e:
         logger.error(f"Error checking channel join for user {user_id}: {e}")
         pass
 
+    # Success: Cache the allowed state
+    _user_access_cache[user_id] = (True, now)
     return True
 
 async def show_suspended_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -806,6 +828,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         try:
             res = await call_api("GET", f"/api/check-telegram-verification?telegramId={user_id}", retries=2)
             if res.get("success") and res.get("verified"):
+                # Cache the verified state instantly so user doesn't wait
+                _user_access_cache[user_id] = (True, time.time())
                 await query.edit_message_text(
                     text="✅ <b>Verification Successful!</b>\n\n<i>Account unlocked. Welcome to XyronMail!</i>",
                     parse_mode="HTML"
@@ -813,6 +837,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 await asyncio.sleep(0.8)
                 data = "cb_menu"  # Fall through to main menu
             else:
+                _user_access_cache[user_id] = (False, time.time())
                 await query.edit_message_text(
                     text=(
                         "❌ <b>Verification Failed</b>\n\n"
