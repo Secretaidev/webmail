@@ -100,32 +100,44 @@ async function sendDbToTelegram(label = "Manual Backup") {
   if (!fs.existsSync(DB_PATH)) return;
 
   const Database = require('better-sqlite3');
-  const tmpPath = path.join(os.tmpdir(), `xyronmail_tg_${Date.now()}.db`);
+  const tmpPath = path.join(os.tmpdir(), `xyronmail_users_${Date.now()}.json`);
 
   try {
-    // 1. Perform a clean backup of SQLite to a temp file
-    const srcDb = new Database(DB_PATH, { readonly: true, fileMustExist: true });
-    await srcDb.backup(tmpPath);
-    srcDb.close();
+    const dbInst = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+    
+    // Extract ONLY users and verification records to minimize file size and avoid server load
+    const users = dbInst.prepare('SELECT id, email, display_name, role, status, telegram_id, is_verified, created_at, last_login_at FROM users').all();
+    const verifications = dbInst.prepare('SELECT telegram_id, ip_address, user_agent, country, device_type, created_at FROM telegram_verifications').all();
+    dbInst.close();
 
-    // 2. Read file buffer
+    const payload = {
+      exported_at: new Date().toISOString(),
+      label,
+      users,
+      verifications
+    };
+
+    // Write to a lightweight JSON file
+    fs.writeFileSync(tmpPath, JSON.stringify(payload, null, 2));
     const fileBuffer = fs.readFileSync(tmpPath);
     
-    // 3. Prepare FormData
+    // Prepare FormData
     const formData = new FormData();
     formData.append('chat_id', channelId);
     
-    const blob = new Blob([fileBuffer], { type: 'application/x-sqlite3' });
-    formData.append('document', blob, `xyronmail_${new Date().toISOString().slice(0,10)}_${Date.now()}.db`);
+    const blob = new Blob([fileBuffer], { type: 'application/json' });
+    formData.append('document', blob, `xyronmail_users_${new Date().toISOString().slice(0,10)}_${Date.now()}.json`);
     
-    const caption = `📦 <b>DATABASE BACKUP - EXPORT</b>\n\n` +
+    const caption = `📦 <b>USER DATA BACKUP - EXPORT</b>\n\n` +
                     `🏷️ <b>Label:</b> <code>${label}</code>\n` +
-                    `📅 <b>Timestamp:</b> <code>${new Date().toISOString()}</code>\n` +
-                    `💾 <b>Size:</b> <code>${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB</code>`;
+                    `📅 <b>Timestamp:</b> <code>${payload.exported_at}</code>\n` +
+                    `👥 <b>Total Users:</b> <code>${users.length}</code>\n` +
+                    `📋 <b>Total Verification Logs:</b> <code>${verifications.length}</code>\n` +
+                    `💾 <b>File Size:</b> <code>${(fileBuffer.length / 1024).toFixed(2)} KB</code>`;
     formData.append('caption', caption);
     formData.append('parse_mode', 'HTML');
 
-    // 4. Send via Bot API
+    // Send via Bot API
     const r = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: 'POST',
       body: formData
@@ -134,7 +146,7 @@ async function sendDbToTelegram(label = "Manual Backup") {
     if (!d.ok) {
       console.error('[TG-Export] Telegram sendDocument error:', d.description);
     } else {
-      console.log('[TG-Export] Database successfully sent to Telegram channel.');
+      console.log('[TG-Export] User database successfully sent to Telegram channel.');
     }
   } catch (err) {
     console.error('[TG-Export] Failed to send database to Telegram:', err.message);

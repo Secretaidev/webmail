@@ -199,6 +199,46 @@ app.get('/verify-telegram', async (req, res) => {
             margin: 0;
           }
           
+          .error-container {
+            display: none;
+            margin: 20px auto 30px auto;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            align-items: center;
+            justify-content: center;
+            color: #ef4444;
+            font-size: 38px;
+            font-weight: bold;
+            animation: pulseError 2s infinite;
+          }
+          @keyframes pulseError {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          }
+          
+          .btn-close {
+            display: none;
+            margin: 24px auto 0 auto;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f4f4f5;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s;
+            font-family: inherit;
+            outline: none;
+          }
+          .btn-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+          }
+          
         </style>
       </head>
       <body>
@@ -213,18 +253,50 @@ app.get('/verify-telegram', async (req, res) => {
             ✓
           </div>
           
+          <!-- Error Cross -->
+          <div class="error-container" id="error-wrapper" style="display: none;">
+            ✕
+          </div>
+          
           <h1 id="status-title">Verifying Session...</h1>
           <p id="status-desc">Please hold on while we secure your connection.</p>
+          
+          <button class="btn-close" id="btn-close" onclick="closeWebApp()">Close Verification</button>
         </div>
 
         <script>
           const loader = document.getElementById('loader-wrapper');
           const successCheck = document.getElementById('success-wrapper');
+          const errorCheck = document.getElementById('error-wrapper');
           const statusTitle = document.getElementById('status-title');
           const statusDesc = document.getElementById('status-desc');
+          const closeBtn = document.getElementById('btn-close');
+
+          function closeWebApp() {
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.close) {
+              window.Telegram.WebApp.close();
+            } else {
+              window.close();
+            }
+          }
+
+          function showVerificationError(title, desc) {
+            loader.style.display = 'none';
+            successCheck.style.display = 'none';
+            errorCheck.style.display = 'flex';
+            statusTitle.textContent = title;
+            statusTitle.style.color = '#ef4444';
+            statusDesc.textContent = desc;
+            closeBtn.style.display = 'block';
+          }
 
           // Trigger verification automatically on load
           window.addEventListener('DOMContentLoaded', async () => {
+            // Signal Telegram WebApp is ready if inside it
+            if (window.Telegram && window.Telegram.WebApp) {
+              try { window.Telegram.WebApp.ready(); } catch(e) {}
+            }
+
             // Wait 1.2s to make it look smooth and professional
             await new Promise(resolve => setTimeout(resolve, 1200));
 
@@ -243,10 +315,7 @@ app.get('/verify-telegram', async (req, res) => {
 
             // If still missing, fail immediately
             if (!tg_id) {
-              loader.style.display = 'none';
-              statusTitle.textContent = 'Verification Failed';
-              statusTitle.style.color = '#ef4444';
-              statusDesc.textContent = 'Telegram Session ID could not be detected. Please open this Mini App inside your Telegram bot.';
+              showVerificationError('Verification Failed', 'Telegram Session ID could not be detected. Please restart verification from the bot.');
               return;
             }
 
@@ -273,17 +342,13 @@ app.get('/verify-telegram', async (req, res) => {
 
                 // Automatically close Telegram WebApp/MiniApp if running inside it
                 setTimeout(() => {
-                  if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.close) {
-                    window.Telegram.WebApp.close();
-                  }
+                  closeWebApp();
                 }, 1500);
               } else {
                 throw new Error(resData.error || 'Verification declined');
               }
             } catch(e) {
-              statusTitle.textContent = 'Verification Failed';
-              statusTitle.style.color = '#ef4444';
-              statusDesc.textContent = 'Error: ' + e.message + '. Please close and restart verification from the bot.';
+              showVerificationError('Verification Failed', 'Error: ' + e.message + '. Please restart verification from the bot.');
             }
           });
         </script>

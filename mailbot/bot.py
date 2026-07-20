@@ -444,7 +444,7 @@ async def show_force_join_message(update: Update, context: ContextTypes.DEFAULT_
 
     keyboard = [
         [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
-        [webapp_btn("🔒 Verify Account", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+        [url_btn("🔒 Verify Account", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
         [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
     ]
 
@@ -834,7 +834,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 ),
                 reply_markup=InlineKeyboardMarkup([
                     [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
-                    [webapp_btn("🔒 Verify Account", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+                    [url_btn("🔒 Verify Account", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
                     [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
                 ]),
                 parse_mode="HTML"
@@ -861,7 +861,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                     ),
                     reply_markup=InlineKeyboardMarkup([
                         [url_btn("📢 Join Channel (@Xyron_Bots)", "https://t.me/Xyron_Bots", style="primary")],
-                        [webapp_btn("🔒 Verify Account", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
+                        [url_btn("🔒 Verify Account", f"{API_URL}/verify-telegram?tg_id={user_id}", style="success")],
                         [btn("🔄 Check Verification Status", "cb_check_ver", style="success")]
                     ]),
                     parse_mode="HTML"
