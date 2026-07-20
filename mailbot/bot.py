@@ -370,55 +370,22 @@ CACHE_TTL = 300  # 5 minutes TTL for verified users
 
 async def check_user_access(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> bool:
     """
-    Checks if user is verified via Web App in database.
-    Returns True if allowed, False if verification is required.
-    Uses in-memory cache to keep bot response speeds near-instantaneous.
+    Bypasses force checks & returns True immediately (unless user is explicitly banned/suspended by admin).
     """
     if user_id == ADMIN_TG_ID:
-        return True  # Admin bypasses force checks!
+        return True
 
-    now = time.time()
-    if user_id in _user_access_cache:
-        cached_allowed, cached_time = _user_access_cache[user_id]
-        if now - cached_time < CACHE_TTL:
-            if cached_allowed:
-                return True
-            # For unverified states, only recheck every 15 seconds to prevent spamming
-            elif now - cached_time < 15:
-                await show_force_join_message(update, context, user_id)
-                return False
-
-    # 1. Check Web App Verification & User Status in Database
+    # Check if user status is suspended or banned in admin database
     try:
         res = await call_api("GET", f"/api/check-telegram-verification?telegramId={user_id}", retries=2)
         if res.get("success"):
             status = res.get("status", "active")
             if status in ["suspended", "banned"]:
                 await show_suspended_message(update, context)
-                _user_access_cache[user_id] = (False, now)
-                return False
-            if not res.get("verified"):
-                await show_force_join_message(update, context, user_id)
-                _user_access_cache[user_id] = (False, now)
                 return False
     except Exception as e:
-        logger.error(f"Error checking web verification for user {user_id}: {e}")
-        # Server downtime fallback: bypass to keep bot working
-        return True
+        logger.error(f"Error checking user access: {e}")
 
-    # 2. Check Channel Join Status
-    try:
-        member = await context.bot.get_chat_member(chat_id="@Xyron_Bots", user_id=user_id)
-        if member.status in ['left', 'kicked']:
-            await show_force_join_message(update, context, user_id)
-            _user_access_cache[user_id] = (False, now)
-            return False
-    except Exception as e:
-        logger.error(f"Error checking channel join for user {user_id}: {e}")
-        pass
-
-    # Success: Cache the allowed state
-    _user_access_cache[user_id] = (True, now)
     return True
 
 async def show_suspended_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
