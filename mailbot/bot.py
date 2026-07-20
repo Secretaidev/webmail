@@ -563,6 +563,22 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     except Exception as e:
         await update.message.reply_text(f"❌ <b>Failed to clear inboxes:</b> {html_escape(str(e))}", parse_mode="HTML")
 
+async def export_db_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if user_id != ADMIN_TG_ID:
+        await update.message.reply_text("❌ Unauthorized. Access denied.")
+        return
+
+    msg = await update.message.reply_text("⏳ <b>Exporting database to backup channel...</b>", parse_mode="HTML")
+    try:
+        res = await call_api("POST", "/api/admin/export-db", use_admin=True)
+        if res.get("success"):
+            await msg.edit_text("✅ <b>Database successfully exported!</b>\nCheck the private backup channel.", parse_mode="HTML")
+        else:
+            await msg.edit_text(f"❌ <b>Export failed:</b> {res.get('error')}", parse_mode="HTML")
+    except Exception as e:
+        await msg.edit_text(f"❌ <b>Exception occurred:</b> {str(e)}", parse_mode="HTML")
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     if user_id != ADMIN_TG_ID:
@@ -1528,6 +1544,7 @@ def main() -> None:
     app.add_handler(CommandHandler("myid", myid_command))
     app.add_handler(CommandHandler("clear", clear_command))
     app.add_handler(CommandHandler("admin", admin_command))
+    app.add_handler(CommandHandler("export_db", export_db_command))
 
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

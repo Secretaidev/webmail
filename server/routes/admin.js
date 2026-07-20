@@ -441,6 +441,18 @@ router.get('/telegram-verifications', (req, res) => {
   }
 });
 
+/* ======================== Export Database to Telegram Channel ======================== */
+
+router.post('/export-db', auditLog('admin.export_db', 'system'), async (req, res) => {
+  try {
+    const { sendDbToTelegram } = require('../db-sync');
+    await sendDbToTelegram("Manual Admin Web Console Trigger");
+    res.json({ success: true, message: 'Database successfully exported to Telegram channel.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to export database', message: err.message });
+  }
+});
+
 /* ======================== Clear All Data ======================== */
 
 router.delete('/clear-all', auditLog('admin.clear_all', 'system'), (req, res) => {

@@ -35,20 +35,40 @@ db.pragma('temp_store = MEMORY');
 db.pragma('cache_size = -32000');
 db.pragma('busy_timeout = 30000');
 
-// Background interval to upload SQLite backup to cloud
-const { uploadDatabaseToCloud } = require('./db-sync');
+// Background intervals for database backups
+const { uploadDatabaseToCloud, sendDbToTelegram, sendDailyTextSummary } = require('./db-sync');
+
+// Cloud backup sync every 60 seconds
 setInterval(() => {
   uploadDatabaseToCloud();
-}, 60000); // Back up every 60 seconds (reduced frequency to lower write pressure)
+}, 60000);
 
-// Hook into graceful shutdowns to upload one final time
+// Daily automated export to Telegram database channel (every 24 hours)
+setInterval(() => {
+  sendDbToTelegram("Daily Automated File Export");
+  sendDailyTextSummary();
+}, 24 * 60 * 60 * 1000);
+
+// One-time startup automated export to Telegram channel 45 seconds after startup
+setTimeout(() => {
+  sendDbToTelegram("Server Startup Automated File Export");
+  sendDailyTextSummary();
+}, 45000);
+
+// Hook into graceful shutdowns to upload final backups to cloud and Telegram before exit
 function handleExitSync() {
-  console.log('[Database] Saving final backup to Supabase Cloud before exit...');
+  console.log('[Database] Saving final backup to Supabase Cloud & Telegram before exit...');
   try {
-    // We run it synchronously using child process to prevent process from terminating before async upload finishes
+    // Sync to Supabase Cloud PostgreSQL
     execSync(`node "${path.join(__dirname, 'sync-upload-direct.js')}"`, { stdio: 'inherit' });
   } catch (e) {
-    console.error('Final sync upload failed:', e.message);
+    console.error('Final Cloud PostgreSQL sync upload failed:', e.message);
+  }
+  try {
+    // Send final SQLite file to Telegram Channel
+    execSync(`node "${path.join(__dirname, 'sync-upload-tg.js')}"`, { stdio: 'inherit' });
+  } catch (e) {
+    console.error('Final Telegram Channel sync upload failed:', e.message);
   }
 }
 

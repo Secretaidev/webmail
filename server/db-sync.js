@@ -93,4 +93,92 @@ async function uploadDatabaseToCloud() {
   }
 }
 
-module.exports = { syncDatabaseFromCloud, uploadDatabaseToCloud };
+async function sendDbToTelegram(label = "Manual Backup") {
+  const botToken = process.env.BOT_TOKEN || "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8";
+  const channelId = "-1004474317278";
+  
+  if (!fs.existsSync(DB_PATH)) return;
+
+  const Database = require('better-sqlite3');
+  const tmpPath = path.join(os.tmpdir(), `xyronmail_tg_${Date.now()}.db`);
+
+  try {
+    // 1. Perform a clean backup of SQLite to a temp file
+    const srcDb = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+    await srcDb.backup(tmpPath);
+    srcDb.close();
+
+    // 2. Read file buffer
+    const fileBuffer = fs.readFileSync(tmpPath);
+    
+    // 3. Prepare FormData
+    const formData = new FormData();
+    formData.append('chat_id', channelId);
+    
+    const blob = new Blob([fileBuffer], { type: 'application/x-sqlite3' });
+    formData.append('document', blob, `xyronmail_${new Date().toISOString().slice(0,10)}_${Date.now()}.db`);
+    
+    const caption = `📦 <b>DATABASE BACKUP - EXPORT</b>\n\n` +
+                    `🏷️ <b>Label:</b> <code>${label}</code>\n` +
+                    `📅 <b>Timestamp:</b> <code>${new Date().toISOString()}</code>\n` +
+                    `💾 <b>Size:</b> <code>${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB</code>`;
+    formData.append('caption', caption);
+    formData.append('parse_mode', 'HTML');
+
+    // 4. Send via Bot API
+    const r = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
+      method: 'POST',
+      body: formData
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      console.error('[TG-Export] Telegram sendDocument error:', d.description);
+    } else {
+      console.log('[TG-Export] Database successfully sent to Telegram channel.');
+    }
+  } catch (err) {
+    console.error('[TG-Export] Failed to send database to Telegram:', err.message);
+  } finally {
+    try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch(e) {}
+  }
+}
+
+async function sendDailyTextSummary() {
+  const botToken = process.env.BOT_TOKEN || "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8";
+  const channelId = "-1004474317278";
+  const { db } = require('./db');
+
+  try {
+    const totalUsers = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
+    const tgUsers = db.prepare('SELECT COUNT(*) as c FROM users WHERE telegram_id IS NOT NULL').get().c;
+    const verifiedTg = db.prepare('SELECT COUNT(*) as c FROM users WHERE telegram_id IS NOT NULL AND is_verified = 1').get().c;
+    const totalInboxes = db.prepare('SELECT COUNT(*) as c FROM inboxes').get().c;
+    const totalMessages = db.prepare('SELECT COUNT(*) as c FROM messages').get().c;
+    const apiKeys = db.prepare('SELECT COUNT(*) as c FROM api_keys WHERE status = "active"').get().c;
+
+    const summaryText = `📊 <b>DAILY DATABASE REPORT SUMMARY</b>\n\n` +
+                        `👥 <b>Total Web Users:</b> <code>${totalUsers}</code>\n` +
+                        `📱 <b>Telegram Users:</b> <code>${tgUsers}</code> (Verified: <code>${verifiedTg}</code>)\n` +
+                        `📬 <b>Active Inboxes:</b> <code>${totalInboxes}</code>\n` +
+                        `✉️ <b>Total Messages:</b> <code>${totalMessages}</code>\n` +
+                        `🔑 <b>Active API Keys:</b> <code>${apiKeys}</code>\n\n` +
+                        `📅 <b>Report Generated:</b> <code>${new Date().toLocaleString()}</code>\n` +
+                        `🟢 <i>System Operational</i>`;
+
+    const r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: channelId, text: summaryText, parse_mode: 'HTML' })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      console.error('[TG-Export] Telegram sendMessage error:', d.description);
+    } else {
+      console.log('[TG-Export] Sent daily text summary to Telegram.');
+    }
+  } catch (err) {
+    console.error('[TG-Export] Failed to send daily text summary:', err.message);
+  }
+}
+
+module.exports = { syncDatabaseFromCloud, uploadDatabaseToCloud, sendDbToTelegram, sendDailyTextSummary };

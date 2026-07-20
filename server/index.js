@@ -327,6 +327,23 @@ app.post('/api/complete-telegram-verification', async (req, res) => {
       db.prepare('UPDATE users SET is_verified = 1 WHERE telegram_id = ?').run(tg_id_str);
     }
 
+    // Send detailed verification log to the private telegram database channel
+    const botToken = process.env.BOT_TOKEN || "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8";
+    const dbChannelId = "-1004474317278";
+    const logText = `👤 <b>USER VERIFIED (NEW RECORD)</b>\n\n` +
+                    `🆔 <b>Telegram ID:</b> <code>${tg_id_str}</code>\n` +
+                    `🌐 <b>IP Address:</b> <code>${ip || 'Unknown'}</code>\n` +
+                    `🌍 <b>Location (Country):</b> <code>${country || 'Unknown'}</code>\n` +
+                    `💻 <b>Device Type:</b> <code>${device || 'Unknown'}</code>\n` +
+                    `📄 <b>User Agent:</b>\n<code>${ua || 'Unknown'}</code>\n\n` +
+                    `📅 <b>Verified At:</b> <code>${new Date().toISOString()}</code>`;
+
+    fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: dbChannelId, text: logText, parse_mode: 'HTML' })
+    }).catch(e => console.error('[TG-Log] Verification alert failed:', e.message));
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
