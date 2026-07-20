@@ -303,14 +303,12 @@ function startLive(inboxId){
   S.liveTimeout=setTimeout(()=>{
     stopLive();
     toast('Live updates paused to save resources. Click Refresh to check again.','w',6000);
-    const indicator=document.querySelector('#mA .ey span.tx');
-    if(indicator)indicator.textContent='Live updates paused';
   },600000);
   try{
     S.sse=new EventSource(`/api/inbox/${inboxId}/stream`);
     S.sse.onmessage=ev=>{try{const d=JSON.parse(ev.data);if(d.type==='new_messages'&&d.count>0){toast(`${d.count} new message${d.count>1?'s':''}!`,'s');loadMessages(inboxId);loadInboxes()}}catch(e){}};
-    S.sse.onerror=()=>{if(S.sse)S.sse.close();S.sse=null;if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},1000)};
-  }catch(e){if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},1000)}
+    S.sse.onerror=()=>{if(S.sse)S.sse.close();S.sse=null;if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},8000)};
+  }catch(e){if(!S.poll)S.poll=setInterval(()=>{if(S.aI===inboxId)loadMessages(inboxId)},8000)}
 }
 
 /* ═══════════════════ ADMIN ═══════════════════ */
@@ -342,8 +340,9 @@ function renderAdminStats(s){
     ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>',s.apiKeys||0,'API Keys','w'],
     ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>',`${s.activeProviders||0}/${s.providers||0}`,'Providers Online','d'],
     ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>',s.apiRequests24h||0,'API Requests (24h)','p'],
+    ['<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.4 2 2 0 0 1 3.6 1.2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8a16 16 0 0 0 8 8l.44-.44a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 23 18z"></path></svg>',`${s.telegramVerifiedUsers||0}`,`Telegram Verified (${s.telegramTotalVerifications||0} logs)`,'s'],
   ];
-  st.innerHTML=items.map(([ic,v,l,c],i)=>`
+  st.innerHTML=items.map(([ic,v,l,c])=>`
     <div class="sc ai">
       <div class="si" style="color:var(--t1)">${ic}</div>
       <div class="sv">${v}</div>
@@ -351,16 +350,15 @@ function renderAdminStats(s){
     </div>`).join('');
 }
 async function adminTab(t){
-  // Update active tab
-  const tabs=['dash','users','prov','dom','ibx','akey','alg','ann','flg','set'];
+  const tabs=['dash','users','tg','prov','dom','ibx','msg','akey','alg','ann','flg','set'];
   document.querySelectorAll('#at .tb2').forEach((b,i)=>b.classList.toggle('on',tabs[i]===t));
   const c=$('aCt');if(!c)return;
   c.innerHTML='<div class="fx ac jc p6"><div class="sp sp2"></div></div>';
   try{
     if(t==='dash'){
       const [apiRes, auditRes, statsRes] = await Promise.all([
-        A.g('/admin/api-logs?limit=5'),
-        A.g('/admin/audit-logs?limit=5'),
+        A.g('/admin/api-logs?limit=10'),
+        A.g('/admin/audit-logs?limit=10'),
         A.g('/admin/stats')
       ]);
       const apiLogs = apiRes.data || [];
@@ -369,48 +367,35 @@ async function adminTab(t){
       const providers = stats.providerHealth || [];
 
       c.innerHTML = `
-        <div class="gr g2 mb6" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
-          <!-- Quick Operations Card -->
-          <div class="c ai">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Quick Management</h3>
-            <div class="fx fc g2">
-              <button class="b bg bw" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('Domains synced','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">Force Domain Sync</button>
-              <button class="b bg bw" onclick="A.p('/admin/providers/health-check').then(()=>{toast('Health checked','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">Check Provider Statuses</button>
-              <button class="b bg bw" onclick="tMt()">Toggle Maintenance Mode</button>
-            </div>
-          </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="b bs bsm" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('Domains synced','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">⚡ Sync Domains</button>
+          <button class="b bs bsm" onclick="A.p('/admin/providers/health-check').then(()=>{toast('Health checked','s');adminTab('dash')}).catch(e=>toast(e.message,'e'))">💓 Health Check</button>
+          <button class="b bg bsm" onclick="tMt()">🛠 Toggle Maintenance</button>
+          <button class="b bg bsm" onclick="adminBroadcastModal()">📢 Broadcast</button>
+          <button class="b bg bsm" style="color:var(--d)" onclick="adminClearAll()">🗑 Clear All Data</button>
+          <button class="b bd bsm" onclick="adminPurgeUsers()">☠ Purge All Users</button>
+        </div>
 
-          <!-- Active System Providers -->
+        <div class="gr g2 mb6" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
           <div class="c ai">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Active Provider Pools</h3>
+            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Provider Health</h3>
             <div style="max-height:200px;overflow-y:auto">
               ${providers.map(p => `
                 <div class="fx ac jb mb2" style="border-bottom:1px solid var(--bdr);padding-bottom:12px;margin-bottom:12px;">
                   <div>
                     <span class="ts bo" style="font-size:.85rem">${esc(p.display_name)}</span>
-                    <span class="tx tm" style="font-size:.7rem;display:block">Prio: ${p.priority} · Req: ${p.request_count}</span>
+                    <span class="tx tm" style="font-size:.7rem;display:block">Prio: ${p.priority} · Req: ${p.request_count} · Err: ${p.error_count}</span>
                   </div>
                   <span class="bd2 bd2${p.status==='active'?'s':p.status==='degraded'?'w':'d'}">${p.status}</span>
                 </div>
-              `).join('') || '<div class="tc tm">No providers configured</div>'}
+              `).join('') || '<div class="tc tm">No providers</div>'}
             </div>
           </div>
-        </div>
-
-        <div class="gr g2" style="grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
-          <!-- Recent API Requests -->
           <div class="c ai">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Real-Time API Logs</h3>
+            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Recent API Requests</h3>
             <div class="tw">
               <table class="ta" style="font-size:.75rem">
-                <thead>
-                  <tr>
-                    <th>Method</th>
-                    <th>Path</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                  </tr>
-                </thead>
+                <thead><tr><th>Method</th><th>Path</th><th>Status</th><th>Time</th></tr></thead>
                 <tbody>
                   ${apiLogs.map(l => `
                     <tr>
@@ -419,42 +404,41 @@ async function adminTab(t){
                       <td><span class="bd2 bd2${(l.status_code||200)<400?'s':'d'}">${l.status_code||200}</span></td>
                       <td class="tx tm">${ago(l.created_at)}</td>
                     </tr>
-                  `).join('') || '<tr><td colspan="4" class="tc tm">No logs recorded</td></tr>'}
+                  `).join('') || '<tr><td colspan="4" class="tc tm">No logs</td></tr>'}
                 </tbody>
               </table>
             </div>
           </div>
+        </div>
 
-          <!-- Recent Administrative Actions -->
-          <div class="c ai">
-            <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Security Audit Logs</h3>
-            <div class="tw">
-              <table class="ta" style="font-size:.75rem">
-                <thead>
+        <div class="c ai">
+          <h3 class="bo ts mb4" style="font-size:1.05rem;font-weight:600">Security Audit Trail</h3>
+          <div class="tw">
+            <table class="ta" style="font-size:.75rem">
+              <thead><tr><th>Action</th><th>Resource</th><th>IP</th><th>Time</th></tr></thead>
+              <tbody>
+                ${auditLogs.map(l => `
                   <tr>
-                    <th>Action</th>
-                    <th>IP</th>
-                    <th>Time</th>
+                    <td><span class="bd2 bd2m">${esc(l.action)}</span></td>
+                    <td class="tx">${esc(l.resource_type||'')} ${esc(l.resource_id||'')}</td>
+                    <td class="mn2 tx">${esc(l.ip_address||'')}</td>
+                    <td class="tx tm">${ago(l.created_at)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  ${auditLogs.map(l => `
-                    <tr>
-                      <td><span class="bd2 bd2m">${esc(l.action)}</span></td>
-                      <td class="mn2 tx">${esc(l.ip_address)}</td>
-                      <td class="tx tm">${ago(l.created_at)}</td>
-                    </tr>
-                  `).join('') || '<tr><td colspan="3" class="tc tm">No audit events recorded</td></tr>'}
-                </tbody>
-              </table>
-            </div>
+                `).join('') || '<tr><td colspan="4" class="tc tm">No audit events</td></tr>'}
+              </tbody>
+            </table>
           </div>
         </div>
       `;
     }
     else if(t==='users'){
       const d=await A.g('/admin/users');
-      c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead><tbody>
+      c.innerHTML=`
+        <div class="fx ac jb mb4">
+          <h3 class="bo ts">Web Users (${(d.data||[]).length})</h3>
+          <button class="b bd bsm" onclick="adminPurgeUsers()">☠ Purge All Non-Admin</button>
+        </div>
+        <div class="tw"><table class="ta"><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr></thead><tbody>
         ${(d.data||[]).map(u=>`<tr>
           <td class="mn2 tx">${esc(u.email)}</td>
           <td>${esc(u.display_name||'—')}</td>
@@ -463,9 +447,45 @@ async function adminTab(t){
           <td class="tx tm">${u.last_login_at?ago(u.last_login_at):'Never'}</td>
           <td class="fx g2">
             <select class="ip" style="width:78px;padding:4px;font-size:.7rem" onchange="A.u('/admin/users/${u.id}',{role:this.value}).then(()=>toast('Role updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.role==='user'?'selected':''}>user</option><option ${u.role==='developer'?'selected':''}>developer</option><option ${u.role==='admin'?'selected':''}>admin</option></select>
-            <select class="ip" style="width:78px;padding:4px;font-size:.7rem" onchange="A.u('/admin/users/${u.id}',{status:this.value}).then(()=>toast('Status updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.status==='active'?'selected':''}>active</option><option ${u.status==='suspended'?'selected':''}>suspended</option><option ${u.status==='banned'?'selected':''}>banned</option></select>
+            <select class="ip" style="width:88px;padding:4px;font-size:.7rem" onchange="A.u('/admin/users/${u.id}',{status:this.value}).then(()=>toast('Status updated','s')).catch(e=>toast(e.message,'e'))"><option ${u.status==='active'?'selected':''}>active</option><option ${u.status==='suspended'?'selected':''}>suspended</option><option ${u.status==='banned'?'selected':''}>banned</option></select>
+            <button class="b bg bsm" style="color:var(--d);font-size:.7rem" onclick="if(confirm('Delete user?'))A.d('/admin/users/${u.id}').then(()=>{toast('Deleted','i');adminTab('users')}).catch(e=>toast(e.message,'e'))">Del</button>
           </td>
         </tr>`).join('')}</tbody></table></div>`;
+    }
+    else if(t==='tg'){
+      const d=await A.g('/admin/telegram-users');
+      const users = d.data || [];
+      c.innerHTML=`
+        <div class="fx ac jb mb4" style="flex-wrap:wrap;gap:8px">
+          <h3 class="bo ts">Telegram Users (${users.length})</h3>
+          <div class="fx g2">
+            <button class="b bg bsm" onclick="adminBroadcastModal()">📢 Broadcast All</button>
+            <button class="b bd bsm" onclick="adminPurgeUsers()">☠ Purge All</button>
+          </div>
+        </div>
+        <div class="tw" style="max-height:70vh;overflow-y:auto">
+          <table class="ta">
+            <thead><tr><th>TG ID</th><th>Name</th><th>Role</th><th>Status</th><th>Verified</th><th>Inboxes</th><th>Joined</th><th>Actions</th></tr></thead>
+            <tbody>
+            ${users.map(u=>`<tr>
+              <td class="mn2 tx"><code style="font-size:.75rem">${esc(u.telegram_id)}</code></td>
+              <td class="tx bo" style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${esc(u.display_name||'—')}</td>
+              <td><span class="bd2 bd2${u.role==='admin'?'d':u.role==='developer'?'a':'p'}" style="font-size:.65rem">${u.role}</span></td>
+              <td><span class="bd2 bd2${u.status==='active'?'s':u.status==='suspended'?'w':'d'}" style="font-size:.65rem">${u.status}</span></td>
+              <td class="tc">${u.is_verified?'✅':'❌'}</td>
+              <td class="tc tx">${u.inbox_count||0}</td>
+              <td class="tx tm">${ago(u.created_at)}</td>
+              <td>
+                <div class="fx g1" style="flex-wrap:wrap">
+                  <button class="b bg bsm" style="font-size:.65rem;padding:3px 7px" onclick="adminTgStatus('${esc(u.telegram_id)}','${u.status==='active'?'suspended':'active'}')">${u.status==='active'?'Ban':'Unban'}</button>
+                  <button class="b bg bsm" style="font-size:.65rem;padding:3px 7px" onclick="adminTgResetVer('${esc(u.telegram_id)}')">Reset Ver</button>
+                  <button class="b bg bsm" style="font-size:.65rem;padding:3px 7px;color:var(--d)" onclick="adminTgDelete('${esc(u.telegram_id)}')">Delete</button>
+                </div>
+              </td>
+            </tr>`).join('')||'<tr><td colspan="8" class="tc tm p4">No Telegram users yet</td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
     }
     else if(t==='prov'){
       const d=await A.g('/admin/providers');
@@ -494,37 +514,62 @@ async function adminTab(t){
     }
     else if(t==='dom'){
       const d=await A.g('/admin/domains');
-      c.innerHTML=`<div class="fx ac jb mb4"><h3 class="bo ts">${(d.data||[]).length} Domains Registered</h3></div>
+      c.innerHTML=`<div class="fx ac jb mb4"><h3 class="bo ts">${(d.data||[]).length} Domains Registered</h3><button class="b bg bsm" onclick="A.p('/admin/providers/sync-domains').then(()=>{toast('Synced','s');adminTab('dom')})">Sync Now</button></div>
         <div class="tw" style="max-height:70vh;overflow-y:auto"><table class="ta"><thead><tr><th>Domain</th><th>Provider</th><th>Status</th></tr></thead><tbody>
         ${(d.data||[]).map(dm=>`<tr><td class="mn2 tx">${esc(dm.domain)}</td><td>${esc(dm.provider_display_name||dm.provider_name||'')}</td><td><span class="bd2 bd2${dm.status==='active'?'s':'d'}">${dm.status}</span></td></tr>`).join('')}
         </tbody></table></div>`;
     }
     else if(t==='ibx'){
-      const d=await A.g('/admin/inboxes');
-      c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Address</th><th>Provider</th><th>Messages</th><th>Created</th><th></th></tr></thead><tbody>
-        ${(d.data||[]).map(i=>`<tr><td class="mn2 tx">${esc(i.email_address)}</td><td class="tx">${esc(i.provider_name||'')}</td><td>${i.message_count||0}</td><td class="tx tm">${ago(i.created_at)}</td><td><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/inboxes/${i.id}').then(()=>{toast('Deleted','i');adminTab('ibx')})">Delete</button></td></tr>`).join('')}
+      const d=await A.g('/admin/inboxes?limit=100');
+      c.innerHTML=`<div class="fx ac jb mb4"><h3 class="bo ts">All Inboxes (${(d.data||[]).length})</h3><button class="b bd bsm" onclick="adminClearAll()">Clear All</button></div>
+        <div class="tw"><table class="ta"><thead><tr><th>Address</th><th>User</th><th>Provider</th><th>Msgs</th><th>Created</th><th></th></tr></thead><tbody>
+        ${(d.data||[]).map(i=>`<tr><td class="mn2 tx">${esc(i.email_address)}</td><td class="tx tm" style="font-size:.7rem">${esc(i.user_session_id||'anonymous')}</td><td class="tx">${esc(i.provider_name||'')}</td><td>${i.message_count||0}</td><td class="tx tm">${ago(i.created_at)}</td><td><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/inboxes/${i.id}').then(()=>{toast('Deleted','i');adminTab('ibx')})">Delete</button></td></tr>`).join('')}
         </tbody></table></div>`;
+    }
+    else if(t==='msg'){
+      const d=await A.g('/admin/messages?limit=100');
+      const msgs = d.data||[];
+      c.innerHTML=`
+        <div class="fx ac jb mb4" style="flex-wrap:wrap;gap:8px">
+          <h3 class="bo ts">All Messages (${d.pagination?.total||msgs.length})</h3>
+          <button class="b bd bsm" onclick="if(confirm('Delete ALL messages?'))A.d('/admin/messages').then(r=>{toast(r.message||'Cleared','i');adminTab('msg')}).catch(e=>toast(e.message,'e'))">Clear All Messages</button>
+        </div>
+        <div class="tw" style="max-height:70vh;overflow-y:auto">
+          <table class="ta">
+            <thead><tr><th>From</th><th>Subject</th><th>Inbox</th><th>OTP</th><th>Received</th></tr></thead>
+            <tbody>
+            ${msgs.map(m=>`<tr>
+              <td class="mn2 tx" style="max-width:120px;overflow:hidden;text-overflow:ellipsis">${esc(m.from_address)}</td>
+              <td class="tx" style="max-width:150px;overflow:hidden;text-overflow:ellipsis">${esc(m.subject||'(no subject)')}</td>
+              <td class="tx tm" style="font-size:.7rem;max-width:130px;overflow:hidden;text-overflow:ellipsis">${esc(m.inbox_email)}</td>
+              <td>${m.otp_code?`<span class="bd2 bd2a">${esc(m.otp_code)}</span>`:'—'}</td>
+              <td class="tx tm">${ago(m.received_at)}</td>
+            </tr>`).join('')||'<tr><td colspan="5" class="tc tm p4">No messages</td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
     }
     else if(t==='akey'){
       const d=await A.g('/admin/api-keys');
-      c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Name</th><th>User</th><th>Key Prefix</th><th>Status</th><th>Quota</th></tr></thead><tbody>
-        ${(d.data||[]).map(k=>`<tr><td class="bo">${esc(k.name)}</td><td class="tx">${esc(k.user_email||'')}</td><td class="mn2 tx">${k.key_prefix||''}...</td><td><span class="bd2 bd2${k.status==='active'?'s':'d'}">${k.status}</span></td><td class="tx">${k.quota_used_today||0}/${k.quota_daily||1000}</td></tr>`).join('')}
+      c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Name</th><th>User</th><th>Key Prefix</th><th>Status</th><th>Quota</th><th>TG ID</th></tr></thead><tbody>
+        ${(d.data||[]).map(k=>`<tr><td class="bo">${esc(k.name)}</td><td class="tx">${esc(k.user_email||'')}</td><td class="mn2 tx">${k.key_prefix||''}...</td><td><span class="bd2 bd2${k.status==='active'?'s':'d'}">${k.status}</span></td><td class="tx">${k.quota_used_today||0}/${k.quota_daily||1000}</td><td class="tx tm">${k.telegram_id||'—'}</td></tr>`).join('')}
         </tbody></table></div>`;
     }
     else if(t==='alg'){
-      const d=await A.g('/admin/audit-logs');
-      c.innerHTML=`<div class="tw"><table class="ta"><thead><tr><th>Action</th><th>Resource</th><th>IP</th><th>Time</th></tr></thead><tbody>
+      const d=await A.g('/admin/audit-logs?limit=200');
+      c.innerHTML=`<div class="tw" style="max-height:70vh;overflow-y:auto"><table class="ta"><thead><tr><th>Action</th><th>Resource</th><th>IP</th><th>Time</th></tr></thead><tbody>
         ${(d.data||[]).map(l=>`<tr><td><span class="bd2 bd2m">${esc(l.action)}</span></td><td class="tx">${esc(l.resource_type||'')} ${esc(l.resource_id||'')}</td><td class="tx mn2">${esc(l.ip_address||'')}</td><td class="tx tm">${ago(l.created_at)}</td></tr>`).join('')}
         </tbody></table></div>`;
     }
     else if(t==='ann'){
       const d=await A.g('/admin/announcements');
       c.innerHTML=`<div class="fx ac jb mb4"><h3 class="bo ts">Announcements</h3><button class="b bg bsm" onclick="announceModal()">New</button></div>
-        ${(d.data||[]).length?(d.data||[]).map(a=>`<div class="c mb4 ai"><div class="fx ac jb mb2"><span class="bo">${esc(a.title)}</span><div class="fx g2"><span class="bd2 bd2${a.type==='critical'?'d':a.type==='warning'?'w':'p'}">${a.type}</span><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/announcements/${a.id}').then(()=>{toast('Deleted','i');adminTab('ann')})">Delete</button></div></div><p class="ts t2">${esc(a.content)}</p></div>`).join(''):'<div class="c p4 tm tc">No announcements yet</div>'}`;
+        ${(d.data||[]).length?(d.data||[]).map(a=>`<div class="c mb4 ai"><div class="fx ac jb mb2"><span class="bo">${esc(a.title)}</span><div class="fx g2"><span class="bd2 bd2${a.type==='critical'?'d':a.type==='warning'?'w':'p'}">${a.type}</span><button class="b bg bsm" style="color:var(--d)" onclick="A.d('/admin/announcements/${a.id}').then(()=>{toast('Deleted','i');adminTab('ann')})">Delete</button></div></div><p class="ts t2">${esc(a.content)}</p></div>`).join(''):
+        '<div class="c p4 tm tc">No announcements yet</div>'}`;
     }
     else if(t==='flg'){
       const d=await A.g('/admin/feature-flags');
-      c.innerHTML=`<div class="gr g3" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${(d.data||[]).map(f=>`<div class="c ai"><div class="fx ac jb"><div><div class="bo ts">${esc(f.name)}</div><div class="tx tm mt2">${esc(f.description||'')}</div></div><button class="b ${f.is_enabled?'bg':'bg'} bsm" onclick="A.u('/admin/feature-flags/${f.id}',{isEnabled:${!f.is_enabled}}).then(()=>{toast('Updated','s');adminTab('flg')})">${f.is_enabled?'ON':'OFF'}</button></div></div>`).join('')}</div>`;
+      c.innerHTML=`<div class="gr g3" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">${(d.data||[]).map(f=>`<div class="c ai"><div class="fx ac jb"><div><div class="bo ts">${esc(f.name)}</div><div class="tx tm mt2">${esc(f.description||'')}</div></div><button class="b ${f.is_enabled?'bs':'bg'} bsm" onclick="A.u('/admin/feature-flags/${f.id}',{isEnabled:${!f.is_enabled}}).then(()=>{toast('Updated','s');adminTab('flg')})">${f.is_enabled?'ON':'OFF'}</button></div></div>`).join('')}</div>`;
     }
     else if(t==='set'){
       const d=await A.g('/admin/settings');
@@ -536,6 +581,62 @@ async function adminTab(t){
 function aT(t){adminTab(t)}
 function announceModal(){
   $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>New Announcement</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Title</label><input class="ip" id="anT" placeholder="Announcement title"></div><div class="ig"><label>Content</label><textarea class="ip" id="anC" rows="3" placeholder="Details..."></textarea></div><div class="ig"><label>Type</label><select class="ip" id="anY"><option value="info">Info</option><option value="warning">Warning</option><option value="critical">Critical</option></select></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="A.p('/admin/announcements',{title:$('anT').value,content:$('anC').value,type:$('anY').value}).then(()=>{closeModal();toast('Created','s');adminTab('ann')}).catch(e=>toast(e.message,'e'))">Publish</button></div></div></div>`;
+}
+function aRef(){loadAdmin()}
+async function tMt(){try{const d=await A.p('/admin/maintenance',{});toast(`Maintenance mode is now ${d.maintenanceMode ? 'ON' : 'OFF'}`,'w');loadAdmin()}catch(e){toast(e.message,'e')}}
+
+function adminClearAll(){
+  if(!confirm('⚠️ DELETE ALL inboxes and messages? This cannot be undone.'))return;
+  A.d('/admin/clear-all').then(r=>{toast(r.message||'All data cleared','i');adminTab('dash')}).catch(e=>toast(e.message,'e'));
+}
+
+function adminPurgeUsers(){
+  if(!confirm('☠️ PERMANENTLY DELETE all non-admin users, inboxes, messages, keys, and logs? This is IRREVERSIBLE.'))return;
+  if(!confirm('Second confirmation: Are you 100% sure? All user data will be gone.'))return;
+  A.d('/admin/purge-all-users').then(r=>{toast(r.message||'Purged','i',6000);adminTab('dash');loadAdmin()}).catch(e=>toast(e.message,'e'));
+}
+
+function adminBroadcastModal(){
+  $('mC').innerHTML=`<div class="mo" onclick="if(event.target===this)closeModal()"><div class="mx ai"><div class="mh"><h2>📢 Broadcast to Telegram Users</h2><button class="b bg bi" onclick="closeModal()">✕</button></div><div class="mb"><div class="ig"><label>Message (HTML supported)</label><textarea class="ip" id="bcMsg" rows="5" placeholder="<b>Important:</b> Your message here..."></textarea></div><div class="ig"><label>Target</label><select class="ip" id="bcTarget"><option value="all">All Telegram Users</option><option value="verified">Verified Only</option></select></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="adminDoBroadcast()">Send Broadcast</button></div></div></div>`;
+}
+
+async function adminDoBroadcast(){
+  const msg=$('bcMsg')?.value;
+  const target=$('bcTarget')?.value;
+  if(!msg){toast('Enter a message','e');return}
+  try{
+    const r=await A.p('/admin/broadcast',{message:msg,targetType:target});
+    closeModal();
+    toast(`Broadcast sent: ${r.sent} success, ${r.failed} failed out of ${r.total}`,'s',5000);
+  }catch(e){toast(e.message,'e')}
+}
+
+async function adminTgStatus(tgId, newStatus){
+  try{
+    await A.p('/admin/telegram-user/status',{telegramId:tgId,status:newStatus});
+    toast(`User ${tgId} ${newStatus==='suspended'?'banned':'unbanned'}`,'s');
+    adminTab('tg');
+  }catch(e){toast(e.message,'e')}
+}
+
+async function adminTgResetVer(tgId){
+  if(!confirm(`Reset verification for ${tgId}? They will need to re-verify.`))return;
+  try{
+    await A.p(`/admin/telegram-user/${tgId}/reset-verification`,{});
+    toast(`Verification reset for ${tgId}`,'s');
+    adminTab('tg');
+  }catch(e){toast(e.message,'e')}
+}
+
+async function adminTgDelete(tgId){
+  if(!confirm(`DELETE Telegram user ${tgId} and ALL their data? This cannot be undone.`))return;
+  try{
+    await A.d(`/admin/telegram-user/${tgId}`);
+    toast(`User ${tgId} deleted`,'i');
+    adminTab('tg');
+  }catch(e){toast(e.message,'e')}
+}
+ass="ip" id="anY"><option value="info">Info</option><option value="warning">Warning</option><option value="critical">Critical</option></select></div></div><div class="mf"><button class="b bg" onclick="closeModal()">Cancel</button><button class="b bp" onclick="A.p('/admin/announcements',{title:$('anT').value,content:$('anC').value,type:$('anY').value}).then(()=>{closeModal();toast('Created','s');adminTab('ann')}).catch(e=>toast(e.message,'e'))">Publish</button></div></div></div>`;
 }
 function aRef(){loadAdmin()}
 async function tMt(){try{const d=await A.p('/admin/maintenance',{});toast(`Maintenance mode is now ${d.maintenanceMode ? 'ON' : 'OFF'}`,'w');loadAdmin()}catch(e){toast(e.message,'e')}}

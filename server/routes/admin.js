@@ -444,8 +444,8 @@ router.get('/telegram-verifications', (req, res) => {
 router.delete('/clear-all', auditLog('admin.clear_all', 'system'), (req, res) => {
   try {
     const clearAll = db.transaction(() => {
-      db.prepare('DELETE FROM messages').run();
       db.prepare('DELETE FROM attachments').run();
+      db.prepare('DELETE FROM messages').run();
       db.prepare('DELETE FROM inboxes').run();
     });
     clearAll();
@@ -455,5 +455,159 @@ router.delete('/clear-all', auditLog('admin.clear_all', 'system'), (req, res) =>
   }
 });
 
-module.exports = router;
+/* ======================== Purge All Non-Admin Users ======================== */
 
+router.delete('/purge-all-users', auditLog('admin.purge_users', 'system'), (req, res) => {
+  try {
+    const purge = db.transaction(() => {
+      // Delete all data
+      db.prepare('DELETE FROM attachments').run();
+      db.prepare('DELETE FROM messages').run();
+      db.prepare('DELETE FROM inboxes').run();
+      db.prepare('DELETE FROM api_logs').run();
+      db.prepare('DELETE FROM audit_logs').run();
+      db.prepare('DELETE FROM sessions').run();
+      db.prepare('DELETE FROM telegram_verifications').run();
+      // Delete all API keys for non-admin users
+      db.prepare("DELETE FROM api_keys WHERE id != 'key_bot_master' AND user_id NOT IN (SELECT id FROM users WHERE role = 'admin')").run();
+      // Delete all non-admin users
+      db.prepare("DELETE FROM users WHERE role != 'admin'").run();
+      // Reset pre-generated keys
+      db.prepare("UPDATE pre_generated_keys SET status = 'unused', assigned_to_telegram_id = NULL").run();
+    });
+    purge();
+    res.json({ success: true, message: 'All non-admin users and their data have been purged. System is fresh.' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to purge users', message: err.message });
+  }
+});
+
+/* ======================== Message Management ======================== */
+
+router.get('/messages', (req, res) => {
+  const { page = 1, limit = 50, search } = req.query;
+  const offset = (parseInt(page) - 1) * parseInt(limit);
+  let where = '1=1';
+  const params = [];
+  if (search) { where += ' AND (m.subject LIKE ? OR m.from_address LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+
+  const total = db.prepare(`SELECT COUNT(*) as c FROM messages m WHERE ${where}`).get(...params).c;
+  const messages = db.prepare(`
+    SELECT m.id, m.from_address, m.subject, m.otp_code, m.received_at, m.size_bytes,
+           i.email_address as inbox_email, i.user_session_id
+    FROM messages m JOIN inboxes i ON m.inbox_id = i.id
+    WHERE ${where} ORDER BY m.received_at DESC LIMIT ? OFFSET ?
+  `).all(...params, parseInt(limit), offset);
+
+  res.json({ success: true, data: messages, pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / parseInt(limit)) } });
+});
+
+router.delete('/messages', auditLog('admin.delete_messages', 'system'), (req, res) => {
+  try {
+    const r1 = db.prepare('DELETE FROM attachments').run();
+    const r2 = db.prepare('DELETE FROM messages').run();
+    db.prepare("UPDATE inboxes SET message_count = 0").run();
+    res.json({ success: true, message: `Deleted ${r2.changes} messages.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete messages', message: err.message });
+  }
+});
+
+/* ======================== Broadcast to Telegram Users ======================== */
+
+router.post('/broadcast', async (req, res) => {
+  try {
+    const { message, targetType = 'all' } = req.body;
+    if (!message) return res.status(400).json({ error: 'message is required' });
+
+    const botToken = process.env.BOT_TOKEN || "8318868368:AAFjV-zExyYk8hiBSc-K1kUXVGIQXXUaa_8";
+
+    let users;
+    if (targetType === 'verified') {
+      users = db.prepare("SELECT telegram_id FROM users WHERE telegram_id IS NOT NULL AND is_verified = 1").all();
+    } else {
+      users = db.prepare("SELECT telegram_id FROM users WHERE telegram_id IS NOT NULL").all();
+    }
+
+    let sent = 0, failed = 0;
+    for (const u of users) {
+      try {
+        const r = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chat_id: u.telegram_id, text: message, parse_mode: 'HTML' })
+        });
+        const d = await r.json();
+        if (d.ok) sent++; else failed++;
+      } catch (e) { failed++; }
+    }
+
+    res.json({ success: true, sent, failed, total: users.length });
+  } catch (err) {
+    res.status(500).json({ error: 'Broadcast failed', message: err.message });
+  }
+});
+
+/* ======================== Telegram User - Full Management ======================== */
+
+router.delete('/telegram-user/:tg_id', auditLog('admin.delete_telegram_user', 'user'), (req, res) => {
+  try {
+    const tg_id = req.params.tg_id;
+    const user = db.prepare('SELECT id FROM users WHERE telegram_id = ?').get(tg_id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const deleteUser = db.transaction(() => {
+      // Cascade delete all user data
+      const inboxIds = db.prepare('SELECT id FROM inboxes WHERE user_id = ? OR user_session_id = ?').all(user.id, `tg_${tg_id}`).map(i => i.id);
+      for (const inboxId of inboxIds) {
+        db.prepare('DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE inbox_id = ?)').run(inboxId);
+        db.prepare('DELETE FROM messages WHERE inbox_id = ?').run(inboxId);
+      }
+      db.prepare('DELETE FROM inboxes WHERE user_id = ? OR user_session_id = ?').run(user.id, `tg_${tg_id}`);
+      db.prepare('DELETE FROM api_keys WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+      db.prepare('DELETE FROM telegram_verifications WHERE telegram_id = ?').run(tg_id);
+      db.prepare('DELETE FROM users WHERE id = ?').run(user.id);
+    });
+    deleteUser();
+
+    res.json({ success: true, message: `Telegram user ${tg_id} and all their data deleted.` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete user', message: err.message });
+  }
+});
+
+router.post('/telegram-user/:tg_id/reset-verification', (req, res) => {
+  try {
+    const tg_id = req.params.tg_id;
+    db.prepare('UPDATE users SET is_verified = 0 WHERE telegram_id = ?').run(tg_id);
+    db.prepare('DELETE FROM telegram_verifications WHERE telegram_id = ?').run(tg_id);
+    res.json({ success: true, message: 'Verification reset.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/* ======================== All Telegram Users List ======================== */
+
+router.get('/telegram-users', (req, res) => {
+  try {
+    const users = db.prepare(`
+      SELECT u.id, u.telegram_id, u.display_name, u.role, u.status, u.is_verified, 
+             u.created_at, u.last_login_at,
+             COUNT(DISTINCT i.id) as inbox_count,
+             COUNT(DISTINCT k.id) as key_count
+      FROM users u
+      LEFT JOIN inboxes i ON (i.user_id = u.id OR i.user_session_id = 'tg_' || u.telegram_id)
+      LEFT JOIN api_keys k ON k.user_id = u.id AND k.status = 'active'
+      WHERE u.telegram_id IS NOT NULL
+      GROUP BY u.id
+      ORDER BY u.created_at DESC
+    `).all();
+    res.json({ success: true, data: users, total: users.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
